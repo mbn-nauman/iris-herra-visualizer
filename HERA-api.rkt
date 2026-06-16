@@ -3,7 +3,8 @@
 (provide get-PC step! get-flags get-registers get-data get-code)
 
 
-; Just mockup for now ... all provided functions can be called, but step! only simulates ADD(r1, r2,r3)
+; Just mockup for now ... all provided functions can be called, but
+;   for now, step! only simulates the exact instruction ADD(r1, r2,r3)
 
 (define memsize 65536)  ; sometimes we set this to 64 to make testing less annoying
 (define wordlim 65536)  ; registers and ram hold values modulo wordlim

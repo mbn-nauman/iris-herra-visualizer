@@ -24,13 +24,30 @@
                      [parent main-panel]))
 
 
-
 (define content (new horizontal-panel%
                      [parent main-panel]))
 
+(define middle-panel (new vertical-panel%
+                          [parent content]))
+
 (define register-panel (new group-box-panel%
-                       [parent content]
+                       [parent middle-panel]
                        [label "Registers"]))
+
+(define stack-panel (new group-box-panel%
+                       [parent middle-panel]
+                       [label "Stack"]))
+(define (make-stack-labels i)
+  (cond
+    [(< i 0) '()]
+    [else
+     (cons (new message%
+                [parent stack-panel]
+                [label (format "Stack[~a]: -" i)]
+                [auto-resize #t])
+           (make-register-labels (- i 1)))]))
+
+
 
 (define (make-register-labels i)
   (cond

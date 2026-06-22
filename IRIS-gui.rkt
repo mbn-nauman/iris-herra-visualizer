@@ -1,3 +1,10 @@
+; content
+;├── code-panel
+;├── middle-panel
+;│   ├── register-panel
+;│   └── stack-panel
+;└── memory-panel
+
 #lang racket
 (require racket/gui/base)
 
@@ -6,7 +13,7 @@
   [width 900]
   [height 600]))
 
-(define r0-value 0) ; we will change this when step is clicked, also this is temporary for now, later will make something for vector for register
+; (define r0-value 0) ; we will change this when step is clicked, also this is temporary for now, later will make something for vector for register
 
 
 (define main-panel (new vertical-panel% 
@@ -31,17 +38,24 @@
     [else
      (cons (new message%
                 [parent register-panel]
-                [label (format "R~a: 0" i)])
+                [label (format "R~a: 0" i)]
+                [auto-resize #t])
            (make-register-labels (+ i 1)))]))
 
 (define register-labels
   (make-register-labels 0))
 
-check again
-(define (change-r0)
-  (define r0-label (list-ref register-labels 0))
-  (send r0-label set-label
-        (format "R0: ~a" r0-value))) ; the ~a puts r0-value instead of it, the ~a sort of works like an f string in python
+;(define (change-r0)
+ ; (define r0-label (list-ref register-labels 0))
+  ;(send r0-label set-label
+   ;     (format "R0: ~a" r0-value))) ; the ~a puts r0-value instead of it, the ~a sort of works like an f string in python
+
+; first made a specific function to update the r0 register, now will make a general function to update any register
+
+(define (set-register-value! reg-num value)
+  (define label-of-register (list-ref register-labels reg-num))
+  (send label-of-register set-label
+        (format "R~a: ~a" reg-num value)))
 
 
 (new button%
@@ -56,8 +70,7 @@ check again
      [label "Step"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (set! r0-value (+ r0-value 1))
-        (change-r0))])
+        (set-register-value! 0 123))])
 
 (new button%
      [parent toolbar]

@@ -27,16 +27,21 @@
 (define content (new horizontal-panel%
                      [parent main-panel]))
 
+
 (define middle-panel (new vertical-panel%
                           [parent content]))
+
 
 (define register-panel (new group-box-panel%
                        [parent middle-panel]
                        [label "Registers"]))
 
+
 (define stack-panel (new group-box-panel%
                        [parent middle-panel]
                        [label "Stack"]))
+
+
 (define (make-stack-labels i)
   (cond
     [(< i 0) '()]
@@ -45,8 +50,19 @@
                 [parent stack-panel]
                 [label (format "Stack[~a]: -" i)]
                 [auto-resize #t])
-           (make-register-labels (- i 1)))]))
+           (make-stack-labels (- i 1)))]))
 
+
+(define stack-labels
+  (make-stack-labels 7))
+
+
+
+(define (set-stack-value! stack-num value)
+  (define label-position (- 7 stack-num))
+  (define label-of-stack (list-ref stack-labels label-position))
+  (send label-of-stack set-label
+        (format "Stack[~a]: ~a" stack-num value)))
 
 
 (define (make-register-labels i)
@@ -87,7 +103,9 @@
      [label "Step"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (set-register-value! 0 123))])
+        (set-register-value! 0 123)
+        (set-stack-value! 0 999)
+        (set-stack-value! 1 888))])
 
 (new button%
      [parent toolbar]

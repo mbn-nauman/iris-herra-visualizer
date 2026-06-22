@@ -37,7 +37,7 @@
 (define register-labels
   (make-register-labels 0))
 
-check
+check again
 (define (change-r0)
   (define r0-label (list-ref register-labels 0))
   (send r0-label set-label

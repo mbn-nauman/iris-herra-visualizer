@@ -57,9 +57,8 @@
   (make-stack-labels 7))
 
 
-
 (define (set-stack-value! stack-num value)
-  (define label-position (- 7 stack-num))
+  (define label-position (- 7 stack-num)) ; have to do minus 7 because stack grows upward so for example the bottom most stack would be on the last index in the stack-labels list
   (define label-of-stack (list-ref stack-labels label-position))
   (send label-of-stack set-label
         (format "Stack[~a]: ~a" stack-num value)))

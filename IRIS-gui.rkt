@@ -90,6 +90,7 @@
                 [auto-resize #t])
            (make-register-labels (+ i 1)))]))
 
+
 (define register-labels
   (make-register-labels 0))
 
@@ -105,6 +106,27 @@
   (send label-of-register set-label
         (format "R~a: ~a" reg-num value)))
 
+(define memory-panel (new group-box-panel%
+                      [parent content]
+                      [label "Memory"]))
+
+(define (make-memory-labels i)
+  [cond
+    [(= i 8) '()]
+    [else
+     (cons (new message%
+            [parent memory-panel]
+            [label (format "Mem[~a]: -" i)]
+            [auto-resize #t])
+           (make-memory-labels (+ i 1)))]])
+
+(define memory-labels
+  (make-memory-labels 0))
+
+(define (set-memory-value! mem-num value)
+  (define label-of-memory (list-ref memory-labels mem-num))
+  (send label-of-memory set-label
+        (format "Mem[~a]: ~a" mem-num value)))
 
 (new button%
      [parent toolbar]

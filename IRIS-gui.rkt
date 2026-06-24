@@ -27,6 +27,22 @@
 (define content (new horizontal-panel%
                      [parent main-panel]))
 
+(define code-panel (new group-box-panel%
+                      [parent content]
+                      [label "Code / File"]))
+
+(define code-text ; making a code-text object of text% to add some sample text to test codebox
+  (new text%))
+
+(send code-text insert ; sample/test text
+      "heylol")
+
+(new editor-canvas% ; this object is used when we need to show some text to the user
+     [parent code-panel]
+     [editor code-text]
+     [min-width 300]
+     [min-height 400])
+
 
 (define middle-panel (new vertical-panel%
                           [parent content]))

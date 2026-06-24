@@ -79,6 +79,13 @@
   (send label-of-stack set-label
         (format "Stack[~a]: ~a" stack-num value)))
 
+(define (reset-stack! i)
+  (cond
+    [(= i 8) void]
+    [else
+     (set-stack-value! i "-")
+     (reset-stack! (+ i 1))]))
+
 
 (define (make-register-labels i)
   (cond
@@ -106,6 +113,13 @@
   (send label-of-register set-label
         (format "R~a: ~a" reg-num value)))
 
+(define (reset-registers! i)
+  (cond
+    [(= i 16) void]
+    [else
+     (set-register-value! i 0)
+     (reset-registers! (+ i 1))]))
+
 (define memory-panel (new group-box-panel%
                       [parent content]
                       [label "Memory"]))
@@ -128,6 +142,18 @@
   (send label-of-memory set-label
         (format "Mem[~a]: ~a" mem-num value)))
 
+(define (reset-memory! i)
+  (cond
+    [(= i 8) void]
+    [else
+     (set-memory-value! i "-")
+     (reset-memory! (+ i 1))]))
+
+(define (reset-display!)
+  (reset-registers! 0)
+  (reset-stack! 0)
+  (reset-memory! 0))
+
 (new button%
      [parent toolbar]
      [label "Run"]
@@ -142,14 +168,16 @@
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         (set-register-value! 0 123)
         (set-stack-value! 0 999)
-        (set-stack-value! 1 888))])
+        (set-stack-value! 1 888)
+        (set-memory-value! 2 555))])
 
 (new button%
      [parent toolbar]
      [label "Reset"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (displayln "Reset Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
+        ;(displayln "Reset Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
+        (reset-display!))])
 
 
 

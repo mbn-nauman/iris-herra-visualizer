@@ -34,8 +34,15 @@
 (define code-text ; making a code-text object of text% to add some sample text to test codebox
   (new text%))
 
-(send code-text insert ; sample/test text
-      "heylol")
+;(send code-text insert ; sample/test text
+ ;     "heylol")
+
+(define (set-code-display! code-string)
+  (send code-text erase)
+  (send code-text insert code-string))
+
+(set-code-display!
+ "Welcome to Iris, by Davew and MBN")
 
 (new editor-canvas% ; this object is used when we need to show some text to the user
      [parent code-panel]
@@ -159,7 +166,10 @@
      [label "Run"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (displayln "Run Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
+        ;(displayln "Run Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
+        (set-code-display!
+         "LOAD(R1, 100)\nLOAD(R2, 200)\nADD(R3, R1, R2)\nSTORE(R3, 300)\nHALT()\n"))])
+
 
 (new button%
      [parent toolbar]

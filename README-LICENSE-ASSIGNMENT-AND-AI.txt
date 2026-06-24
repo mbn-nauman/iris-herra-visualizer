@@ -2,6 +2,7 @@ I agree to release my contributions to this project under the MIT and Apache lic
 as per README-LICENSE.txt.
 
    -Dave Wonnacott
+   -Muhammad Bin Nauman
 
 
 
@@ -12,3 +13,4 @@ LLM's have been used in the construction of this software in only the following 
 
 * As learning tools to self-teach Racket and Racket libraries
 * As tools to _identify_ problems without actually changing or adding code
+* As a helper to give ideas on how to make the visualizer better

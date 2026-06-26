@@ -2,8 +2,7 @@
 ;├── code-panel
 ;├── middle-panel
 ;│   ├── register-panel
-;│   └── stack-panel
-;└── memory-panel
+;└── memory-panel -- more than one...hex an dec
 
 #lang racket
 (require racket/gui/base)

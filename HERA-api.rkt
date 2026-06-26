@@ -1,8 +1,9 @@
 #lang racket
-(require racket/random)
+(require "check.rkt")
 (provide get-PC step! get-flags get-register get-data get-code get-code-asm)
 (provide load-data load-code)
 
+(require racket/random) ; temporary, while testing
 
 ; Just mockup for now ... all provided functions can be called, but
 ;   for now, step! only simulates the exact instruction ADD(r1, r2,r3)
@@ -65,3 +66,17 @@
   (set! memory-code
         (list->vector (random-sample (list #xA123 #xA121 #xA321 #xA221)
                                      memsize))))
+
+
+;;
+;;  ---- UNIT TEST BELOW ----
+;;
+
+(check-equal (get-PC) 0)
+(check-equal (get-register 0) 0)
+(check-equal (get-data 0) 0)
+(check-equal (get-code 0) 0)
+
+(step!)
+(check-equal (get-PC) 1)  ; this should actually stay 0 if code[0] is 0, but, that's not implemented yet ... ToDo!
+

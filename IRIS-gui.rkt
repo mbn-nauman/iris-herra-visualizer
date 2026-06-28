@@ -63,6 +63,11 @@
                        [parent middle-panel]
                        [label "Stack"]))
 
+(new message%
+     [parent stack-panel]
+     [label "Slot    Value"]
+     [auto-resize #t])
+
 
 (define (make-stack-labels i)
   (cond
@@ -70,7 +75,7 @@
     [else
      (cons (new message%
                 [parent stack-panel]
-                [label (format "Stack[~a]: -" i)]
+                [label (format "~a       -" i)]
                 [auto-resize #t])
            (make-stack-labels (- i 1)))]))
 
@@ -83,7 +88,7 @@
   (define label-position (- 7 stack-num)) ; have to do minus 7 because stack grows upward so for example the bottom most stack would be on the last index in the stack-labels list
   (define label-of-stack (list-ref stack-labels label-position))
   (send label-of-stack set-label
-        (format "Stack[~a]: ~a" stack-num value)))
+        (format "~a       ~a" stack-num value)))
 
 (define (reset-stack! i)
   (cond
@@ -92,6 +97,10 @@
      (set-stack-value! i "-")
      (reset-stack! (+ i 1))]))
 
+(new message%
+     [parent register-panel]
+     [label "Register    Value"]
+     [auto-resize #t])
 
 (define (make-register-labels i)
   (cond
@@ -99,7 +108,7 @@
     [else
      (cons (new message%
                 [parent register-panel]
-                [label (format "R~a: 0" i)]
+                [label (format "R~a             0" i)]
                 [auto-resize #t])
            (make-register-labels (+ i 1)))]))
 
@@ -117,7 +126,7 @@
 (define (set-register-value! reg-num value)
   (define label-of-register (list-ref register-labels reg-num))
   (send label-of-register set-label
-        (format "R~a: ~a" reg-num value)))
+        (format "R~a             ~a" reg-num value)))
 
 (define (reset-registers! i)
   (cond
@@ -126,9 +135,16 @@
      (set-register-value! i 0)
      (reset-registers! (+ i 1))]))
 
+
+
 (define memory-panel (new group-box-panel%
                       [parent content]
                       [label "Memory"]))
+
+(new message%
+     [parent memory-panel]
+     [label "Address    Value"]
+     [auto-resize #t])
 
 (define (make-memory-labels i)
   [cond
@@ -136,7 +152,7 @@
     [else
      (cons (new message%
             [parent memory-panel]
-            [label (format "Mem[~a]: -" i)]
+            [label (format "0x000~a      -" i)]
             [auto-resize #t])
            (make-memory-labels (+ i 1)))]])
 
@@ -146,7 +162,7 @@
 (define (set-memory-value! mem-num value)
   (define label-of-memory (list-ref memory-labels mem-num))
   (send label-of-memory set-label
-        (format "Mem[~a]: ~a" mem-num value)))
+        (format "0x000~a      ~a" mem-num value)))
 
 (define (reset-memory! i)
   (cond

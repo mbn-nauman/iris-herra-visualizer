@@ -14,3 +14,4 @@ LLM's have been used in the construction of this software in only the following 
 * As learning tools to self-teach Racket and Racket libraries
 * As tools to _identify_ problems without actually changing or adding code
 * As a helper to give ideas on how to make the visualizer better
+* As a semantic racket documentation search and example-generator, to learn new racket features

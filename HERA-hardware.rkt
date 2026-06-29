@@ -47,7 +47,6 @@
 (define (get-b0 i)       (bitwise-and #x00FF i))
 
 (let ([example-mult "1100 Dddd Aaaa Bbbb"] [example-num #xbcde])
-  (displayln (maskfor  "1"  "0" ""  example-mult))
   (check-equal (maskfor  "1"  "0" ""  example-mult) #xC000) ; make all non-1's into 0's, so we can and with this
   (check-equal (maskfor  "0"  "1" ""  example-mult) #xCFFF) ;    all non-0's become 1's, so we can  or with this
   (check-equal (maskfor  "aA" "0" "1" example-mult) #x00F0) ; mask for parameter A
@@ -65,13 +64,13 @@
     (init pattern action)
     (define _p pattern)
     (define _a action)
-    (define and-mask  (maskfor '([#rx"[^1]" "0"]) pattern)) ; see examples in tests above
-    (define  or-mask  (maskfor '([#rx"[^0]" "1"]) pattern))
+    (define and-mask  (maskfor "1"  "0"  "" pattern)) ; see examples in tests above
+    (define  or-mask  (maskfor "0"  "1"  "" pattern))
 
-    (define op-a-mask (maskfor  '([#rx"[^aA]"  "0"] [#rx"[Aa]" "1"]) pattern))
-    (define op-b-mask (maskfor  '([#rx"[^bB]"  "0"] [#rx"[bB]" "1"]) pattern))
-    (define op-d-mask (maskfor  '([#rx"[^Dd]"  "0"] [#rx"[Dd]" "1"]) pattern))
-    (define op-v-mask (maskfor  '([#rx"[^Vv]"  "0"] [#rx"[vV]" "1"]) pattern))
+    (define op-a-mask (maskfor "aA" "0" "1" pattern))
+    (define op-b-mask (maskfor "bB" "0" "1" pattern))
+    (define op-d-mask (maskfor "Dd" "0" "1" pattern))
+    (define op-v-mask (maskfor "Vv" "0" "1" pattern))
     
     (define/public (match? me)   (or (= (bitwise-and me and-mask) and-mask)
                                      (= (bitwise-ior me  or-mask)  or-mask)))

@@ -8,6 +8,14 @@
 
 (require racket/random) ; temporary, while testing
 
+(define memsize 65536)  ; sometimes we set this to 64 to make testing less annoying
+(define wordlim 65536)  ; registers and ram hold values modulo wordlim
+(define PC 0)
+(define flags       (make-vector 5       #f))
+(define registers   (make-vector 16       0))
+(define memory-data (make-vector memsize  0))
+(define memory-code (make-vector memsize  0))
+
 (define (hera-val? v)
   (and (integer? v) (<= 0 v) (< v wordlim)))
 (define (hera-addr? a)
@@ -15,9 +23,22 @@
 (define (hera-reg-num? r)
   (and (integer? r) (<= 0 r) (< r 16)))
 
-; some bit arithmetic rolled into the string-input system,
-(define (maskfor transforms pattern)
-  (string->number (string-append "#b" (regexp-replaces pattern (cons '[#rx" *" ""] transforms)))))
+;;
+;; some bit operations making use of the string-input system that allows 0, 1, _, and letters to define ops
+;;
+
+; cut spaces, change non-"care-about-chars" into "miss", then care-about-chars into hit-is-or-nullstr (if != ""), in pattern
+(define/contract (maskfor care-about-chars miss-is hit-is-or-nullstr pattern)
+  (->                     string?          string? string?           string?   hera-val?)
+  (let* ([misses (list (regexp (string-append "[^" care-about-chars "]")) miss-is)]
+         [spaces '[#rx" *" ""]]
+         [xforms (if (string=? hit-is-or-nullstr "")
+                    (list spaces misses)
+                    (list spaces misses
+                          (list (regexp (string-append "[" care-about-chars "]")) hit-is-or-nullstr)))])
+    (string->number
+     (string-append "#b" (regexp-replaces pattern xforms)))))
+
 (define (get-n3 i)    (/ (bitwise-and #xF000 i) #x1000))  ; nybble 3, i.e., usually the op-code, except for shifts, etc.
 (define (get-n2 i)    (/ (bitwise-and #x0F00 i) #x0100))
 (define (get-n1 i)    (/ (bitwise-and #x00F0 i) #x0010))
@@ -25,10 +46,11 @@
 
 (define (get-b0 i)       (bitwise-and #x00FF i))
 
-(let ([example-mult "1100 cccc aaaa bbbb"] [example-num #xbcde])
-  (check-equal (maskfor  '([#rx"[^1]"   "0"]) example-mult) #xC000) ; make all non-1's into 0's, so we can and with this
-  (check-equal (maskfor  '([#rx"[^0]"   "1"]) example-mult) #xCFFF) ;    all non-0's become 1's, so we can  or with this
-  (check-equal (maskfor  '([#rx"[^aA]"  "0"] [#rx"[Aa]" "1"]) example-mult) #x00F0) ; mask for parameter A
+(let ([example-mult "1100 Dddd Aaaa Bbbb"] [example-num #xbcde])
+  (displayln (maskfor  "1"  "0" ""  example-mult))
+  (check-equal (maskfor  "1"  "0" ""  example-mult) #xC000) ; make all non-1's into 0's, so we can and with this
+  (check-equal (maskfor  "0"  "1" ""  example-mult) #xCFFF) ;    all non-0's become 1's, so we can  or with this
+  (check-equal (maskfor  "aA" "0" "1" example-mult) #x00F0) ; mask for parameter A
   (check-equal (get-n3 example-num) #xb)
   (check-equal (get-n2 example-num) #xc)
   (check-equal (get-n1 example-num) #xd)
@@ -48,7 +70,7 @@
 
     (define op-a-mask (maskfor  '([#rx"[^aA]"  "0"] [#rx"[Aa]" "1"]) pattern))
     (define op-b-mask (maskfor  '([#rx"[^bB]"  "0"] [#rx"[bB]" "1"]) pattern))
-    (define op-c-mask (maskfor  '([#rx"[^Cc]"  "0"] [#rx"[Cc]" "1"]) pattern))
+    (define op-d-mask (maskfor  '([#rx"[^Dd]"  "0"] [#rx"[Dd]" "1"]) pattern))
     (define op-v-mask (maskfor  '([#rx"[^Vv]"  "0"] [#rx"[vV]" "1"]) pattern))
     
     (define/public (match? me)   (or (= (bitwise-and me and-mask) and-mask)
@@ -64,13 +86,6 @@
     ))
 
 
-(define memsize 65536)  ; sometimes we set this to 64 to make testing less annoying
-(define wordlim 65536)  ; registers and ram hold values modulo wordlim
-(define PC 0)
-(define flags       (make-vector 5       #f))
-(define registers   (make-vector 16       0))
-(define memory-data (make-vector memsize  0))
-(define memory-code (make-vector memsize  0))
 
 (define (reset!)
   (set! PC 0)
@@ -85,8 +100,13 @@
   (when (> r 0)
     (vector-set! registers r v)))
 
+
 (define SETLO
   (new hera-op% [pattern "1110 cccc vvvvvvvv"]
+       [action (λ (instr)
+                 (set-reg! (get-n2 instr) (get-b0 instr)))]))
+(define ADD
+  (new hera-op% [pattern "1010 cccc vvvvvvvv"]
        [action (λ (instr)
                  (set-reg! (get-n2 instr) (get-b0 instr)))]))
 

@@ -1,8 +1,10 @@
-; content
-;├── code-panel
-;├── middle-panel
-;│   ├── register-panel
-;└── memory-panel -- more than one...hex an dec
+;frame
+;└── main-panel
+;    ├── toolbar
+;    └── content
+;        ├── code-panel
+;        ├── register-panel
+;        └── memory-panel
 
 #lang racket
 (require racket/gui/base)
@@ -50,52 +52,9 @@
      [min-height 400])
 
 
-(define middle-panel (new vertical-panel%
-                          [parent content]))
-
-
 (define register-panel (new group-box-panel%
-                       [parent middle-panel]
+                       [parent content]
                        [label "Registers"]))
-
-
-(define stack-panel (new group-box-panel%
-                       [parent middle-panel]
-                       [label "Stack"]))
-
-(new message%
-     [parent stack-panel]
-     [label "Slot    Value"]
-     [auto-resize #t])
-
-
-(define (make-stack-labels i)
-  (cond
-    [(< i 0) '()]
-    [else
-     (cons (new message%
-                [parent stack-panel]
-                [label (format "~a       -" i)]
-                [auto-resize #t])
-           (make-stack-labels (- i 1)))]))
-
-
-(define stack-labels
-  (make-stack-labels 7))
-
-
-(define (set-stack-value! stack-num value)
-  (define label-position (- 7 stack-num)) ; have to do minus 7 because stack grows upward so for example the bottom most stack would be on the last index in the stack-labels list
-  (define label-of-stack (list-ref stack-labels label-position))
-  (send label-of-stack set-label
-        (format "~a       ~a" stack-num value)))
-
-(define (reset-stack! i)
-  (cond
-    [(= i 8) void]
-    [else
-     (set-stack-value! i "-")
-     (reset-stack! (+ i 1))]))
 
 (new message%
      [parent register-panel]
@@ -173,7 +132,6 @@
 
 (define (reset-display!)
   (reset-registers! 0)
-  (reset-stack! 0)
   (reset-memory! 0))
 
 (new button%
@@ -192,8 +150,6 @@
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         (set-register-value! 0 123)
-        (set-stack-value! 0 999)
-        (set-stack-value! 1 888)
         (set-memory-value! 2 555))])
 
 (new button%

@@ -75,12 +75,17 @@
 (define register-labels
   (make-register-labels 0))
 
-;(define (change-r0)
- ; (define r0-label (list-ref register-labels 0))
-  ;(send r0-label set-label
-   ;     (format "R0: ~a" r0-value))) ; the ~a puts r0-value instead of it, the ~a sort of works like an f string in python
+(define (pad-left str target-length char) ; this function is used to add characters to the left of a string so registers can be written as 0x0043 instead of 0x41
+  (if (>= (string-length str) target-length)
+      str
+      (string-append
+       (make-string (- target-length (string-length str)) char)
+       str)))
 
-; first made a specific function to update the r0 register, now will make a general function to update any register
+(define (hex-display value) ; this converts a number to hex
+  (string-append
+   "0x"
+   (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
 
 (define (set-register-value! reg-num value)
   (define label-of-register (list-ref register-labels reg-num))

@@ -16,7 +16,7 @@
 (define memory-data (make-vector memsize  0))
 (define memory-code (make-vector memsize  0))
 
-(define debug-HERA-hw #t)
+(define debug-HERA-hw #f)
 
 (define (hera-val? v)
   (and (integer? v) (<= 0 v) (< v wordlim)))
@@ -136,6 +136,7 @@
       (eprintf "ToDo: set flags"))  ; ToDo
     (inc-PC!)
   ))
+(eprintf "WARNING:  HERA-hardware.rkt does not currently update any flags\n")
 
 (define SETLO
   (new hera-op% [pattern "1110 dddd vvvvvvvv"]

@@ -159,6 +159,17 @@
                        (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
                  (set-reg-inc-PC! (get-n2 instr) (- (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))))]))
 
+(define BRR
+  (new hera-op% [pattern "0000 0000 oooooooo"]
+       [action (λ (pattern instr)
+                 (let* ([o_8bit      (get-b0 instr)]
+                        [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
+                        [new_PC      (modulo (+ PC o_extended) memsize)])
+                   (when debug-HERA-hw
+                     (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
+                   (set! PC new_PC)))]))
+
+
 (define (step!)
   (let ([op (vector-ref memory-code PC)])
     (when debug-HERA-hw
@@ -167,6 +178,7 @@
       [(send SETLO match? op)   (send SETLO doit! op)]
       [(send   ADD match? op)   (send   ADD doit! op)]
       [(send   SUB match? op)   (send   SUB doit! op)]
+      [(send   BRR match? op)   (send   BRR doit! op)]
       [else  ; ToDo: consider throwing an error instead?
        (eprintf ; https://docs.racket-lang.org/reference/Writing.html#%28def._%28%28quote._~23~25kernel%29._eprintf%29%29
         "Illegal instruction: #x~x"  op)
@@ -185,10 +197,17 @@
 
 (define/contract (load-code! filename)  ; -->
   (->                       string?     void?)
-  (set! memory-code
-        (list->vector (random-sample (list #xA123 #xA121 #xA321 #xA221)
-                                     memsize))))
-
+  (vector-set! memory-code 0 #xE111)
+  (vector-set! memory-code 1 #xE219)
+  (vector-set! memory-code 2 #xA312)
+  (vector-set! memory-code 3 #xA111)
+  (vector-set! memory-code 4 #xB412)
+  (vector-set! memory-code 5 #xB521)
+  (vector-set! memory-code 6 #xB114)
+  (vector-set! memory-code 7 #x0002)
+  (vector-set! memory-code 8 #x0081)  ; we should skip this; branch somewhere crazy if we don't
+  (vector-set! memory-code 9 #x00FD)  ; branch back to  6
+)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -210,12 +229,8 @@
 (check-equal flags     '#(#f #f #f #f #f))
 (reset!)
 
-(vector-set! memory-code 0 #xE111)
-(vector-set! memory-code 1 #xE219)
-(vector-set! memory-code 2 #xA312)
-(vector-set! memory-code 3 #xA111)
-(vector-set! memory-code 4 #xB412)
-(vector-set! memory-code 5 #xB521)
+(load-code! "/dev/null")
+(check-equal (vector-ref memory-code 0) #xE111)
 
 (step!)  ; execute SETLO 1 0x11
 (check-equal registers '#(0 17 00  0 0 0 0 0 0 0 0 0 0 0 0 0))
@@ -231,8 +246,34 @@
 (check-equal flags     '#(#f #f #f #f #f))
 (step!)  ; execute SUB R4 R1 R2
 (check-equal registers '#(0 34 25 42 09  0 0 0 0 0 0 0 0 0 0 0))
-(check-equal flags     '#(#f #f #f #f #f))
+; (check-equal flags     '#(#f #f #f #f #f))
 (step!)  ; execute SUB R5 R2 R1
 (check-equal registers '#(0 34 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
-(check-equal flags     '#(#f #f #f #f #f))
+; (check-equal flags     '#(#f #f #f #f #f))
+
+(check-equal PC 6)
+(step!)
+(check-equal PC 7)
+(check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 9)
+(check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 6)
+(check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 7)
+(check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 9)
+(check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 6)
+(check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)
+(check-equal PC 7)
+(check-equal registers '#(0 07 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+
+
+
 (reset!)

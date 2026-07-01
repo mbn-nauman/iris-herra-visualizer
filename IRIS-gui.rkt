@@ -1,11 +1,3 @@
-;frame
-;└── main-panel
-;    ├── toolbar
-;    └── content
-;        ├── code-panel
-;        ├── register-panel
-;        └── memory-panel
-
 #lang racket
 (require racket/gui/base)
 
@@ -35,8 +27,6 @@
 (define code-text ; making a code-text object of text% to add some sample text to test codebox
   (new text%))
 
-;(send code-text insert ; sample/test text
- ;     "heylol")
 
 (define (set-code-display! code-string)
   (send code-text erase)
@@ -73,6 +63,27 @@
 (define reg-ascii-column (new vertical-panel%
        [parent register-table]))
 
+; making column headers for each format column now
+
+(new message%
+     [parent reg-name-column]
+     [label "Reg"]
+     [auto-resize #t])
+
+(new message%
+     [parent reg-dec-column]
+     [label "Dec"]
+     [auto-resize #t])
+
+(new message%
+     [parent reg-hex-column]
+     [label "Hex"]
+     [auto-resize #t])
+
+(new message%
+     [parent reg-ascii-column]
+     [label "ASCII"]
+     [auto-resize #t])
 
 (define (pad-left str target-length char) ; this function is used to add characters to the left of a string so registers can be written as 0x0043 instead of 0x41
   (if (>= (string-length str) target-length)
@@ -94,9 +105,67 @@
       (string (integer->char value)) "-")) ; if it is not between 32-126, then we just print "-"
 
 
+; making function to create labels for the reg column
+
+(define (make-reg-name-labels i)
+  (cond
+    [(= i 16) '()]
+    [else
+     (cons (new message%
+                [parent reg-name-column]
+                [label (format "R~a" i)]
+                [auto-resize #t])
+           (make-reg-name-labels (+ i 1)))]))
+
+; making function to create labels for the format columns
+
+(define (make-reg-value-labels i parent-column starting-text)
+  (cond
+    [(= i 16) '()]
+    [else
+     (cons (new message%
+                [parent parent-column]
+                [label starting-text]
+                [auto-resize #t])
+           (make-reg-value-labels (+ i 1) parent-column starting-text))]))
+
+
+; making the labels now using the 2 earlier helper functions
+
+(define reg-name-labels
+  (make-reg-name-labels 0))
+
+
+(define reg-dec-labels
+  (make-reg-value-labels 0 reg-dec-column "0"))
+
+
+(define reg-hex-labels
+  (make-reg-value-labels 0 reg-hex-column "0x0000"))
+
+
+(define reg-ascii-labels
+  (make-reg-value-labels 0 reg-ascii-column "-"))
+
+; setting formatted value in reg panel
+
+(define (set-register-value! reg-num value)
+  (define dec-label (list-ref reg-dec-labels reg-num))
+  (define hex-label (list-ref reg-hex-labels reg-num))
+  (define ascii-label (list-ref reg-ascii-labels reg-num))
+
+  (send dec-label set-label
+        (format "~a" value))
+  (send hex-label set-label
+        (hex-display value))
+  (send ascii-label set-label
+        (ascii-display value)))
+
+  
+
 (define (reset-registers! i)
   (cond
-    [(= i 16) void]
+    [(= i 16) (void)]
     [else
      (set-register-value! i 0)
      (reset-registers! (+ i 1))]))
@@ -163,8 +232,7 @@
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         (set-register-value! 0 65)
         (set-register-value! 1 123)
-        (set-memory-value! 2 72)
-        (set-memory-value! 3 105))])
+        (set-register-value! 2 10))])
 
 (new button%
      [parent toolbar]

@@ -11,8 +11,6 @@
 (define/contract (get-PC)  ; return the program counter
   (-> integer?) 
   PC)
-(define          (step!)   ; this one will end up getting a lot more interesting
-  (when verbose (printf "At ~a instr ~a\n" PC (vector-ref memory-code PC))))
 
 (define/contract (get-flags)      (-> vector?) flags)
 (define/contract (get-register r)            ; -->

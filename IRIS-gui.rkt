@@ -102,7 +102,8 @@
   (if (and (integer? value)
            (>= value 32)
            (<= value 126)) ; we only do 32-126 because that is the ASCII numbers for printable characters, rest may mess up things like int=10 is a new line
-      (string (integer->char value)) "-")) ; if it is not between 32-126, then we just print "-"
+      (string (integer->char value))
+      "-")) ; if it is not between 32-126, then we just print "-"
 
 
 ; making function to create labels for the reg column

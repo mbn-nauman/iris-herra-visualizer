@@ -1,5 +1,5 @@
 #lang racket
-(provide memsize wordlim PC flags registers memory-data memory-code reset! load-data! load-code!)
+(provide memsize wordlim PC flags registers memory-data memory-code reset! load-data! load-code! step!)
 
 (require "check.rkt")
 (require racket/math) ;; for bitwise-and

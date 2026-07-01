@@ -180,31 +180,104 @@
                       [label "Memory"]))
 
 
+(define memory-table (new horizontal-panel%
+                          [parent memory-panel]))
+
+
+; now adding vertical panels for each format
+
+(define mem-address-column
+  (new vertical-panel%
+       [parent memory-table]))
+
+(define mem-dec-column
+  (new vertical-panel%
+       [parent memory-table]))
+
+(define mem-hex-column
+  (new vertical-panel%
+       [parent memory-table]))
+
+(define mem-ascii-column
+  (new vertical-panel%
+       [parent memory-table]))
+
+; now adding headers for each value format and address
+
 (new message%
-     [parent memory-panel]
-     [label "Address    Dec    Hex       ASCII"]
+     [parent mem-address-column]
+     [label "Address"]
      [auto-resize #t])
 
+(new message%
+     [parent mem-dec-column]
+     [label "Dec"]
+     [auto-resize #t])
 
-(define (make-memory-labels i)
-  [cond
+(new message%
+     [parent mem-hex-column]
+     [label "Hex"]
+     [auto-resize #t])
+
+(new message%
+     [parent mem-ascii-column]
+     [label "ASCII"]
+     [auto-resize #t])
+
+; making function to create labels for the memory column
+
+(define (make-memory-address-labels i)
+  (cond
     [(= i 8) '()]
     [else
      (cons (new message%
-            [parent memory-panel]
-            [label (format "0x000~a     Dec: -     Hex: -     ASCII: -" i)]
-            [auto-resize #t])
-           (make-memory-labels (+ i 1)))]])
+                [parent mem-address-column]
+                [label (hex-display i)]
+                [auto-resize #t])
+           (make-memory-address-labels (+ i 1)))]))
+
+; making function to create labels for the format columns
+
+(define (make-memory-value-labels i parent-column starting-text)
+  (cond
+    [(= i 8) '()]
+    [else
+     (cons (new message%
+                [parent parent-column]
+                [label starting-text]
+                [auto-resize #t])
+           (make-memory-value-labels (+ i 1) parent-column starting-text))]))
+
+; using ealier 2 functions to make the labels now
+
+(define mem-address-labels
+  (make-memory-address-labels 0))
+
+(define mem-dec-labels
+  (make-memory-value-labels 0 mem-dec-column "0"))
+
+(define mem-hex-labels
+  (make-memory-value-labels 0 mem-hex-column "0x0000"))
+
+(define mem-ascii-labels
+  (make-memory-value-labels 0 mem-ascii-column "-"))
 
 
-(define memory-labels
-  (make-memory-labels 0))
+; setting formatted value in memory panel
 
+(define (set-memory-value! memory-num value)
+  (define dec-label (list-ref mem-dec-labels memory-num))
+  (define hex-label (list-ref mem-hex-labels memory-num))
+  (define ascii-label (list-ref mem-ascii-labels memory-num))
 
-(define (set-memory-value! mem-num value)
-  (define label-of-memory (list-ref memory-labels mem-num))
-  (send label-of-memory set-label
-        (format "0x000~a     Dec: ~a     Hex: ~a     ASCII: ~a" mem-num value (hex-display value) (ascii-display value))))
+  (send dec-label set-label
+        (format "~a" value))
+
+  (send hex-label set-label
+        (hex-display value))
+
+  (send ascii-label set-label
+        (ascii-display value)))
 
 
 (define (reset-memory! i)
@@ -235,7 +308,8 @@
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         (set-register-value! 0 65)
         (set-register-value! 1 123)
-        (set-register-value! 2 10))])
+        (set-memory-value! 2 72)
+        (set-memory-value! 3 105))])
 
 (new button%
      [parent toolbar]

@@ -58,7 +58,7 @@
 
 (new message%
      [parent register-panel]
-     [label "Register    Value"]
+     [label "Reg    Dec    Hex       ASCII"]
      [auto-resize #t])
 
 (define (make-register-labels i)
@@ -67,7 +67,7 @@
     [else
      (cons (new message%
                 [parent register-panel]
-                [label (format "R~a             0" i)]
+                [label (format "R~a     Dec: 0     Hex: 0x0000     ASCII: -" i)]
                 [auto-resize #t])
            (make-register-labels (+ i 1)))]))
 
@@ -87,10 +87,18 @@
    "0x"
    (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
 
+
+(define (ascii-display value) ; helper function for converting integer to ASCII
+  (if (and (integer? value)
+           (>= value 32)
+           (<= value 126)) ; we only do 32-126 because that is the ASCII numbers for printable characters, rest may mess up things like int=10 is a new line
+      (string (integer->char value)) "-")) ; if it is not between 32-126, then we just print "-"
+
+
 (define (set-register-value! reg-num value)
   (define label-of-register (list-ref register-labels reg-num))
   (send label-of-register set-label
-        (format "R~a             ~a" reg-num value)))
+        (format "R~a     Dec: ~a     Hex: ~a     ASCII: ~a" reg-num value (hex-display value) (ascii-display value))))
 
 (define (reset-registers! i)
   (cond
@@ -107,7 +115,7 @@
 
 (new message%
      [parent memory-panel]
-     [label "Address    Value"]
+     [label "Address    Dec    Hex       ASCII"]
      [auto-resize #t])
 
 (define (make-memory-labels i)
@@ -116,7 +124,7 @@
     [else
      (cons (new message%
             [parent memory-panel]
-            [label (format "0x000~a      -" i)]
+            [label (format "0x000~a     Dec: -     Hex: -     ASCII: -" i)]
             [auto-resize #t])
            (make-memory-labels (+ i 1)))]])
 
@@ -126,7 +134,8 @@
 (define (set-memory-value! mem-num value)
   (define label-of-memory (list-ref memory-labels mem-num))
   (send label-of-memory set-label
-        (format "0x000~a      ~a" mem-num value)))
+        (format "0x000~a     Dec: ~a     Hex: ~a     ASCII: ~a" mem-num value (hex-display value) (ascii-display value))))
+
 
 (define (reset-memory! i)
   (cond
@@ -154,8 +163,10 @@
      [label "Step"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (set-register-value! 0 123)
-        (set-memory-value! 2 555))])
+        (set-register-value! 0 65)
+        (set-register-value! 1 123)
+        (set-memory-value! 2 72)
+        (set-memory-value! 3 105))])
 
 (new button%
      [parent toolbar]

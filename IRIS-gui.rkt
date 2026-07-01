@@ -92,6 +92,8 @@
        (make-string (- target-length (string-length str)) char)
        str)))
 
+
+; learnt about this later --> (~r #:base 16 #:min-width 4 #:pad-string "0" 42) --> "002a"
 (define (hex-display value) ; this converts a number to hex
   (string-append
    "0x"

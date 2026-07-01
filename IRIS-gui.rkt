@@ -56,24 +56,23 @@
                        [parent content]
                        [label "Registers"]))
 
-(new message%
-     [parent register-panel]
-     [label "Reg    Dec    Hex       ASCII"]
-     [auto-resize #t])
+(define register-table (new horizontal-panel% ; decided to make a new panel to make different types of formats as different panels inside this as that would make it easier to filter/show different types of formats (dec/hex/ascii/all)
+       [parent register-panel]))
 
-(define (make-register-labels i)
-  (cond
-    [(= i 16) '()]
-    [else
-     (cons (new message%
-                [parent register-panel]
-                [label (format "R~a     Dec: 0     Hex: 0x0000     ASCII: -" i)]
-                [auto-resize #t])
-           (make-register-labels (+ i 1)))]))
+; now adding vertical panels for each format
 
+(define reg-name-column (new vertical-panel%
+       [parent register-table]))
 
-(define register-labels
-  (make-register-labels 0))
+(define reg-dec-column (new vertical-panel%
+       [parent register-table]))
+
+(define reg-hex-column (new vertical-panel%
+       [parent register-table]))
+
+(define reg-ascii-column (new vertical-panel%
+       [parent register-table]))
+
 
 (define (pad-left str target-length char) ; this function is used to add characters to the left of a string so registers can be written as 0x0043 instead of 0x41
   (if (>= (string-length str) target-length)
@@ -95,11 +94,6 @@
       (string (integer->char value)) "-")) ; if it is not between 32-126, then we just print "-"
 
 
-(define (set-register-value! reg-num value)
-  (define label-of-register (list-ref register-labels reg-num))
-  (send label-of-register set-label
-        (format "R~a     Dec: ~a     Hex: ~a     ASCII: ~a" reg-num value (hex-display value) (ascii-display value))))
-
 (define (reset-registers! i)
   (cond
     [(= i 16) void]
@@ -113,10 +107,12 @@
                       [parent content]
                       [label "Memory"]))
 
+
 (new message%
      [parent memory-panel]
      [label "Address    Dec    Hex       ASCII"]
      [auto-resize #t])
+
 
 (define (make-memory-labels i)
   [cond
@@ -128,8 +124,10 @@
             [auto-resize #t])
            (make-memory-labels (+ i 1)))]])
 
+
 (define memory-labels
   (make-memory-labels 0))
+
 
 (define (set-memory-value! mem-num value)
   (define label-of-memory (list-ref memory-labels mem-num))

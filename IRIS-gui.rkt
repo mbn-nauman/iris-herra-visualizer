@@ -119,7 +119,13 @@
 
 ; time to write the refresh register function :)
 
-
+(define (refresh-register-columns!)
+  (send register-table change-children ; changes children according to checked boxes
+        (lambda (children)
+                 (append (list reg-name-column) ; makes sure register column is always visible
+                         (if (send reg-dec-checkbox get-value) (list reg-dec-column) '()) ; if dec is checked then show if not then dont add it to list to show
+                         (if (send reg-hex-checkbox get-value) (list reg-hex-column) '())
+                         (if (send reg-ascii-checkbox get-value) (list reg-ascii-column) '())))))
 
 ; making column headers for each format column now
 
@@ -272,34 +278,44 @@
   (new vertical-panel%
        [parent memory-table]))
 
-; the check boxes
+; making the check boxes now -- as functions now so I can remove extra spaces between columns when a column is hidden
 
-(new check-box%
-     [parent memory-options-panel]
-     [label "Dec"]
-     [value #t]
-     [callback
-      (lambda (checkbox event)
-        (send mem-dec-column show
-              (send checkbox get-value)))])
+(define mem-dec-checkbox
+  (new check-box%
+       [parent memory-options-panel]
+       [label "Dec"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-memory-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
-(new check-box%
-     [parent memory-options-panel]
-     [label "Hex"]
-     [value #t]
-     [callback
-      (lambda (checkbox event)
-        (send mem-hex-column show
-              (send checkbox get-value)))])
+(define mem-hex-checkbox
+  (new check-box%
+       [parent memory-options-panel]
+       [label "Hex"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-memory-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
-(new check-box%
-     [parent memory-options-panel]
-     [label "ASCII"]
-     [value #t]
-     [callback
-      (lambda (checkbox event)
-        (send mem-ascii-column show
-              (send checkbox get-value)))])
+(define mem-ascii-checkbox
+  (new check-box%
+       [parent memory-options-panel]
+       [label "ASCII"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-memory-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
+
+; time to write the refresh memory function :)
+
+(define (refresh-memory-columns!)
+  (send memory-table change-children ; changes children according to checked boxes
+        (lambda (children)
+                 (append (list mem-address-column) ; makes sure register column is always visible
+                         (if (send mem-dec-checkbox get-value) (list mem-dec-column) '()) ; if dec is checked then show if not then dont add it to list to show
+                         (if (send mem-hex-checkbox get-value) (list mem-hex-column) '())
+                         (if (send mem-ascii-checkbox get-value) (list mem-ascii-column) '())))))
 
 ; now adding headers for each value format and address
 
@@ -381,9 +397,9 @@
 
 (define (reset-memory! i)
   (cond
-    [(= i 8) void]
+    [(= i 8) (void)]
     [else
-     (set-memory-value! i "-")
+     (set-memory-value! i 0)
      (reset-memory! (+ i 1))]))
 
 (define (reset-display!)

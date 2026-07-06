@@ -88,34 +88,34 @@
        [stretchable-width #f] ; this forces column to not strech more than it should so the column, when hidden, does it not take up extra space
        [stretchable-height #f])) ; this forced racket to not auto strech vertically
 
-; making the check boxes now
+; making the check boxes now -- as functions now so I can remove extra spaces between columns when a column is hidden
 
-(new check-box%
-     [parent register-options-panel]
-     [label "Dec"]
-     [value #t] ; this means the checkbox is by default checked 
-     [callback
-      (lambda (checkbox event)
-        (send reg-dec-column show
-              (send checkbox get-value)))]) ; returns #f if unchecked, and #t if checked
+(define reg-dec-checkbox
+  (new check-box%
+       [parent register-options-panel]
+       [label "Dec"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-register-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
-(new check-box%
-     [parent register-options-panel]
-     [label "Hex"]
-     [value #t]
-     [callback
-      (lambda (checkbox event)
-        (send reg-hex-column show
-              (send checkbox get-value)))])
+(define reg-hex-checkbox
+  (new check-box%
+       [parent register-options-panel]
+       [label "Hex"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-register-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
-(new check-box%
-     [parent register-options-panel]
-     [label "ASCII"]
-     [value #t]
-     [callback
-      (lambda (checkbox event)
-        (send reg-ascii-column show
-              (send checkbox get-value)))])
+(define reg-ascii-checkbox
+  (new check-box%
+       [parent register-options-panel]
+       [label "ASCII"]
+       [value #t]
+       [callback
+        (lambda (checkbox event)
+          (refresh-register-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
 ; making column headers for each format column now
 

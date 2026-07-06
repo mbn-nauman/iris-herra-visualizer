@@ -117,6 +117,10 @@
         (lambda (checkbox event)
           (refresh-register-columns!))])) ; this function is going to decide which columns to show and will rebuild the register column each time we hide/show a column
 
+; time to write the refresh register function :)
+
+
+
 ; making column headers for each format column now
 
 (new message%

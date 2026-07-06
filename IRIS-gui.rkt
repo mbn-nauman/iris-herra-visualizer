@@ -46,6 +46,12 @@
                        [parent content]
                        [label "Registers"]))
 
+;new horizontal panel for  the checkboxes to show and hide value format columns
+
+(define register-options-panel
+  (new horizontal-panel%
+       [parent register-panel]))
+
 (define register-table (new horizontal-panel% ; decided to make a new panel to make different types of formats as different panels inside this as that would make it easier to filter/show different types of formats (dec/hex/ascii/all)
        [parent register-panel]))
 
@@ -62,6 +68,35 @@
 
 (define reg-ascii-column (new vertical-panel%
        [parent register-table]))
+
+; making the check boxes now
+
+(new check-box%
+     [parent register-options-panel]
+     [label "Dec"]
+     [value #t] ; this means the checkbox is by default checked 
+     [callback
+      (lambda (checkbox event)
+        (send reg-dec-column show
+              (send checkbox get-value)))]) ; returns #f if unchecked, and #t if checked
+
+(new check-box%
+     [parent register-options-panel]
+     [label "Hex"]
+     [value #t]
+     [callback
+      (lambda (checkbox event)
+        (send reg-hex-column show
+              (send checkbox get-value)))])
+
+(new check-box%
+     [parent register-options-panel]
+     [label "ASCII"]
+     [value #t]
+     [callback
+      (lambda (checkbox event)
+        (send reg-ascii-column show
+              (send checkbox get-value)))])
 
 ; making column headers for each format column now
 
@@ -179,6 +214,12 @@
                       [parent content]
                       [label "Memory"]))
 
+; horizontal panel for checkboxes to show or hide value format columns
+
+(define memory-options-panel
+  (new horizontal-panel%
+       [parent memory-panel]))
+
 
 (define memory-table (new horizontal-panel%
                           [parent memory-panel]))
@@ -201,6 +242,35 @@
 (define mem-ascii-column
   (new vertical-panel%
        [parent memory-table]))
+
+; the check boxes
+
+(new check-box%
+     [parent memory-options-panel]
+     [label "Dec"]
+     [value #t]
+     [callback
+      (lambda (checkbox event)
+        (send mem-dec-column show
+              (send checkbox get-value)))])
+
+(new check-box%
+     [parent memory-options-panel]
+     [label "Hex"]
+     [value #t]
+     [callback
+      (lambda (checkbox event)
+        (send mem-hex-column show
+              (send checkbox get-value)))])
+
+(new check-box%
+     [parent memory-options-panel]
+     [label "ASCII"]
+     [value #t]
+     [callback
+      (lambda (checkbox event)
+        (send mem-ascii-column show
+              (send checkbox get-value)))])
 
 ; now adding headers for each value format and address
 

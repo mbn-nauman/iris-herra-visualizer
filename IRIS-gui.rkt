@@ -59,21 +59,34 @@
 (define register-table (new horizontal-panel% ; decided to make a new panel to make different types of formats as different panels inside this as that would make it easier to filter/show different types of formats (dec/hex/ascii/all)
        [parent register-panel]
        [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [spacing 20] ; this is amount of spacing between the columns...20pixels
        [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
 ; now adding vertical panels for each format
 
 (define reg-name-column (new vertical-panel%
-       [parent register-table]))
+       [parent register-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forces column to not strech more than it should so the column, when hidden, does it not take up extra space
+       [stretchable-height #f])) ; this forced racket to not auto strech vertically
 
 (define reg-dec-column (new vertical-panel%
-       [parent register-table]))
+       [parent register-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forces column to not strech more than it should so the column, when hidden, does it not take up extra space
+       [stretchable-height #f])) ; this forced racket to not auto strech vertically
 
 (define reg-hex-column (new vertical-panel%
-       [parent register-table]))
+       [parent register-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forces column to not strech more than it should so the column, when hidden, does it not take up extra space
+       [stretchable-height #f])) ; this forced racket to not auto strech vertically
 
 (define reg-ascii-column (new vertical-panel%
-       [parent register-table]))
+       [parent register-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forces column to not strech more than it should so the column, when hidden, does it not take up extra space
+       [stretchable-height #f])) ; this forced racket to not auto strech vertically
 
 ; making the check boxes now
 

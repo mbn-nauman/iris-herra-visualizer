@@ -44,16 +44,22 @@
 
 (define register-panel (new group-box-panel%
                        [parent content]
-                       [label "Registers"]))
+                       [label "Registers"]
+                       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+                       [spacing 4])) ; this is amount of spacing between the children
 
 ;new horizontal panel for  the checkboxes to show and hide value format columns
 
 (define register-options-panel
   (new horizontal-panel%
-       [parent register-panel]))
+       [parent register-panel]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
 (define register-table (new horizontal-panel% ; decided to make a new panel to make different types of formats as different panels inside this as that would make it easier to filter/show different types of formats (dec/hex/ascii/all)
-       [parent register-panel]))
+       [parent register-panel]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
 ; now adding vertical panels for each format
 
@@ -212,17 +218,23 @@
 
 (define memory-panel (new group-box-panel%
                       [parent content]
-                      [label "Memory"]))
+                      [label "Memory"]
+                      [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+                      [spacing 4])) ; this is amount of spacing between the children
 
 ; horizontal panel for checkboxes to show or hide value format columns
 
 (define memory-options-panel
   (new horizontal-panel%
-       [parent memory-panel]))
+       [parent memory-panel]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
 
 (define memory-table (new horizontal-panel%
-                          [parent memory-panel]))
+                          [parent memory-panel]
+                          [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+                          [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
 
 ; now adding vertical panels for each format

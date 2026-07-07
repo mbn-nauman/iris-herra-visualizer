@@ -15,13 +15,20 @@
 (define registers   (make-vector 16       0))
 (define memory-data (make-vector memsize  0))
 (define memory-code (make-vector memsize  0))
+(define/contract (getf-s)    (-> boolean?) (vector-ref  flags 0))
+(define/contract (getf-z)    (-> boolean?) (vector-ref  flags 1))
+(define/contract (getf-v)    (-> boolean?) (vector-ref  flags 2))
+(define/contract (get-c^!cb) (-> integer?) (if (and  (vector-ref  flags 3) (not (vector-ref  flags 4))) 1 0))  ; effective carry for ADD
+(define/contract (get-cvcb)  (-> integer?) (if (or   (vector-ref  flags 3)      (vector-ref  flags 4))  1 0))  ; effective carry for SUB
+
+(define (setf-s v)  (vector-set! flags 0)) 
 (define flag-s-ind  0)
 (define flag-z-ind  1)
 (define flag-v-ind  2)
 (define flag-c-ind  3)
 (define flag-cb-ind 4)
 
-(define debug-HERA-hw #f)
+(define debug-HERA-hw #t)
 
 (define (hera-val? v)
   (and (integer? v) (<= 0 v) (< v wordlim)))
@@ -143,13 +150,15 @@
 (define/contract (set-reg-inc-PC! reg             value       [also-set-flags #xff])
   (->*                           (hera-reg-num?   integer?)   (integer?)            void?)
   (let ([hera-val (modulo value wordlim)])
+    (when debug-HERA-hw
+      (printf "set-reg-inc-PC for R~a <-- ~a/~a\n" reg value hera-val))
     (set-reg! reg hera-val)
-    (when (> 0 also-set-flags)
+    (when (> also-set-flags 0)
       (set-flag! flag-z-ind (= value 0))
-      (set-flag! flag-s-ind (> 0 (bitwise-and hera-val (/ wordlim 2))))
+      (set-flag! flag-s-ind (> (bitwise-and value (/ wordlim 2)) 0))
       (when (not (= (bitwise-and value (/ wordlim 2)) (bitwise-and hera-val (/ wordlim 2)))) (eprintf "Hmmm, questionable sign flag for ~a/~a" value hera-val))
-      (set-flag! flag-v-ind (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2)))))  ; sign = carry
-      (set-flag! flag-c-ind (> 0 (bitwise-and value wordlim))))
+      (set-flag! flag-v-ind (not (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2))))))  ; sign != carry
+      (set-flag! flag-c-ind (> (bitwise-and value wordlim) 0)))
     (inc-PC!)
   ))
 
@@ -166,13 +175,17 @@
        [action (λ (pattern instr)
                  (when debug-HERA-hw
                        (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))))]))
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                    (get-reg (get-n0 instr))
+                                                    (get-c^!cb))))]))
 (define SUB
   (new hera-op% [pattern "1011 dddd aaaa bbbb"]
        [action (λ (pattern instr)
                  (when debug-HERA-hw
                        (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-                 (set-reg-inc-PC! (get-n2 instr) (- (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))))]))
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                    (- wordlim (get-reg (get-n0 instr))) ; the "- wordlim Rb" gets carry flag right
+                                                    (get-cvcb))))]))
 
 (define BRR
   (new hera-op% [pattern "0000 0000 oooooooo"]
@@ -261,34 +274,63 @@
 (check-equal flags     '#(#f #f #f #f #f))
 (step!)  ; execute SUB R4 R1 R2
 (check-equal registers '#(0 34 25 42 09  0 0 0 0 0 0 0 0 0 0 0))
-; (check-equal flags     '#(#f #f #f #f #f))
+(check-equal flags     '#(#f #f #f #t #f))  ; NOT-BORROW --> CARRY(F0) IS ON
 (step!)  ; execute SUB R5 R2 R1
 (check-equal registers '#(0 34 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
-; (check-equal flags     '#(#f #f #f #f #f))
+(check-equal flags     '#(#f #f #f #f #f))  ; BORROWED
 
 (check-equal PC 6)
-(step!)
+(step!)                 ; SUB R1 R1 R3 (no borrow)
 (check-equal PC 7)
 (check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
 (step!)
 (check-equal PC 9)
 (check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
 (step!)
 (check-equal PC 6)
 (check-equal registers '#(0 25 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
-(step!)
+(check-equal flags     '#(#f #f #f #t #f))
+(step!)                 ; SUB R1 R1 R3 (no borrow)
 (check-equal PC 7)
 (check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
 (step!)
 (check-equal PC 9)
 (check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
 (step!)
 (check-equal PC 6)
 (check-equal registers '#(0 16 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
-(step!)
+(check-equal flags     '#(#f #f #f #t #f))
+(step!)                 ; SUB R1 R1 R3 (no borrow)
 (check-equal PC 7)
 (check-equal registers '#(0 07 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
-
-
+(check-equal flags     '#(#f #f #f #t #f))
+(step!)
+(check-equal PC 9)
+(check-equal registers '#(0 07 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
+(step!)
+(check-equal PC 6)
+(check-equal registers '#(0 07 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #t #f))
+(step!)                 ; SUB R1 R1 R3 (borrow)
+(check-equal PC 7)
+(check-equal registers '#(0 65534 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #f #f))
+(step!)
+(check-equal PC 9)
+(check-equal registers '#(0 65534 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #f #f))
+(step!)
+(check-equal PC 6)
+(check-equal registers '#(0 65534 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #f #f))
+(step!)                 ; SUB R1 R1 R3 (borrow)
+(check-equal PC 7)
+(check-equal registers '#(0 65525 25 42 09 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal flags     '#(#f #f #f #f #f))
 
 (reset!)

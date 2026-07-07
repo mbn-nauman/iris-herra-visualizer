@@ -62,6 +62,35 @@
 ;     [min-height 400])
 
 
+(define code-row-count 8) ; number of code rows shown for now
+
+(define code-address-values ; this stores addresses for each row
+  (make-vector code-row-count 0))
+
+(define code-command-values ; this stores the command values for each row as hex
+  (make-vector code-row-count 0))
+
+(define current-command-mode 0) ; 0 is for hex, 1 is for assembly
+
+
+
+; this initializes each address line to its number and command to 0
+
+(define (init-code-values! i)
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (vector-set! code-address-values i i)
+     (vector-set! code-command-values i 0)
+     (init-code-values! (+ i 1))]))
+
+(init-code-values! 0)
+
+; going to start making the dropdown now for giving option of dec/hex for addresses and hex/asb for commands
+
+
+
+
 (define register-panel (new group-box-panel%
                        [parent content]
                        [label "Registers"]

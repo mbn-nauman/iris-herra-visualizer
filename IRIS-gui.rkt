@@ -1,5 +1,5 @@
 #lang racket
-(require racket/gui/base)
+(require racket/gui/base racket/string)
 
 (define frame (new frame% ; this creates the full window on which we will make the visualizer on
   [label "IRIS"]
@@ -20,26 +20,46 @@
 (define content (new horizontal-panel%
                      [parent main-panel]))
 
+; pad left and hex display for hex, moved up to accomodate the code panel editing we need and switch of format we need there
+
+(define (pad-left str target-length char) ; this function is used to add characters to the left of a string so registers can be written as 0x0043 instead of 0x41
+  (if (>= (string-length str) target-length)
+      str
+      (string-append
+       (make-string (- target-length (string-length str)) char)
+       str)))
+
+
+; learnt about this later --> (~r #:base 16 #:min-width 4 #:pad-string "0" 42) --> "002a"
+(define (hex-display value) ; this converts a number to hex
+  (string-append
+   "0x"
+   (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
+
+
+
 (define code-panel (new group-box-panel%
                       [parent content]
                       [label "Code / File"]))
 
-(define code-text ; making a code-text object of text% to add some sample text to test codebox
-  (new text%))
+; commented out for now cuz changing things in code to implement the updated gui for code panel
+
+;(define code-text ; making a code-text object of text% to add some sample text to test codebox
+;  (new text%))
 
 
-(define (set-code-display! code-string)
-  (send code-text erase)
-  (send code-text insert code-string))
+;(define (set-code-display! code-string)
+;  (send code-text erase)
+;  (send code-text insert code-string))
 
-(set-code-display!
- "Welcome to Iris, by David Wonnacott and Muhammad Bin Nauman")
+;(set-code-display!
+; "Welcome to Iris, by David Wonnacott and Muhammad Bin Nauman")
 
-(new editor-canvas% ; this object is used when we need to show some text to the user
-     [parent code-panel]
-     [editor code-text]
-     [min-width 300]
-     [min-height 400])
+;(new editor-canvas% ; this object is used when we need to show some text to the user
+;     [parent code-panel]
+;     [editor code-text]
+;     [min-width 300]
+;     [min-height 400])
 
 
 (define register-panel (new group-box-panel%
@@ -148,20 +168,6 @@
      [parent reg-ascii-column]
      [label "ASCII"]
      [auto-resize #t])
-
-(define (pad-left str target-length char) ; this function is used to add characters to the left of a string so registers can be written as 0x0043 instead of 0x41
-  (if (>= (string-length str) target-length)
-      str
-      (string-append
-       (make-string (- target-length (string-length str)) char)
-       str)))
-
-
-; learnt about this later --> (~r #:base 16 #:min-width 4 #:pad-string "0" 42) --> "002a"
-(define (hex-display value) ; this converts a number to hex
-  (string-append
-   "0x"
-   (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
 
 
 (define (ascii-display value) ; helper function for converting integer to ASCII

@@ -174,17 +174,24 @@
 
 ; making function to create labels for the reg column
 
+(define (register-name-display i) ; makes sure that Reg14 and Reg15 are FP and SP respectively
+  (cond
+    [(= i 14) "R14/FP"]
+    [(= i 15) "R15/SP"]
+    [else (format "R~a" i)]))
+
 (define (make-reg-name-labels i)
   (cond
     [(= i 16) '()]
     [else
      (cons (new message%
                 [parent reg-name-column]
-                [label (format "R~a" i)]
+                [label (register-name-display i)]
                 [auto-resize #t])
            (make-reg-name-labels (+ i 1)))]))
 
 ; making function to create labels for the format columns
+
 
 (define (make-reg-value-labels i parent-column starting-text)
   (cond

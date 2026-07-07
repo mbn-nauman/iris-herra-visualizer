@@ -42,36 +42,16 @@
                       [parent content]
                       [label "Code / File"]))
 
-; commented out for now cuz changing things in code to implement the updated gui for code panel
 
-;(define code-text ; making a code-text object of text% to add some sample text to test codebox
-;  (new text%))
-
-
-;(define (set-code-display! code-string)
-;  (send code-text erase)
-;  (send code-text insert code-string))
-
-;(set-code-display!
-; "Welcome to Iris, by David Wonnacott and Muhammad Bin Nauman")
-
-;(new editor-canvas% ; this object is used when we need to show some text to the user
-;     [parent code-panel]
-;     [editor code-text]
-;     [min-width 300]
-;     [min-height 400])
-
-
-(define code-row-count 8) ; number of code rows shown for now
+(define code-row-count 8) ; number of code rows shown for now = 8
 
 (define code-address-values ; this stores addresses for each row
-  (make-vector code-row-count 0))
+  (make-vector code-row-count 0)) ; vector: fixed size list
 
 (define code-command-values ; this stores the command values for each row as hex
   (make-vector code-row-count 0))
 
 (define current-command-mode 0) ; 0 is for hex, 1 is for assembly
-
 
 
 ; this initializes each address line to its number and command to 0
@@ -88,9 +68,75 @@
 
 ; going to start making the dropdown now for giving option of dec/hex for addresses and hex/asb for commands
 
+(define code-options-panel
+  (new horizontal-panel%
+       [parent code-panel]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-height #f])) ; this forced racket to not auto strech the code option panel row and keep it the size just needed for dropdown menu
+
+(define code-address-choice ; drop down for address column
+  (new choice%
+       [parent code-options-panel]
+       [label "Address"]
+       [choices '("Dec" "Hex")]
+       [selection 1] ; auto choose hex initially
+       [callback
+        (lambda (choice event) ; for now we have just made a placeholder type thing here for event
+          (refresh-code-display! 0))])) ; this means to rebuild all rows starting from row 0
+                                        ; --> have to make this function, havent made it yet ;;;remove comment if have made it;;;
+
+
+(define code-command-choice ; drop down for command column
+  (new choice%
+       [parent code-options-panel]
+       [label "Command"]
+       [choices '("Hex" "Assembly")]
+       [selection 0] ; auto choose hex initially
+       [callback
+        (lambda (choice event)
+          (save-code-fields! 0) ; it saves the rows of commands before making any changes
+          (set! current-command-mode ; sets the current command mode to whatever is chosen now
+                (send code-command-choice get-selection))
+          (refresh-code-display! 0))])) ; then rebuilds the rows according to the new format (hex/asb)
+
+; now going to make the actual table with the two columns
+
+(define code-table
+  (new horizontal-panel%
+       [parent code-panel]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [spacing 20] ; this is amount of spacing between the columns...20pixels
+       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
+
+(define code-address-column ; address column
+  (new vertical-panel%
+       [parent code-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forced racket to not auto strech the columns and keep them the size they should be
+       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
+
+(define code-command-column ; command column
+  (new vertical-panel%
+       [parent code-table]
+       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [stretchable-width #f] ; this forced racket to not auto strech the columns and keep them the size they should be
+       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
+
+; adding title or headers for these columns now
+
+(new message%
+     [parent code-address-column]
+     [label "Address"]
+     [auto-resize #t])
+
+(new message%
+     [parent code-command-column]
+     [label "Command"]
+     [auto-resize #t])
 
 
 
+; register panel starts here
 (define register-panel (new group-box-panel%
                        [parent content]
                        [label "Registers"]

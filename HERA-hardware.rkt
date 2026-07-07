@@ -15,6 +15,11 @@
 (define registers   (make-vector 16       0))
 (define memory-data (make-vector memsize  0))
 (define memory-code (make-vector memsize  0))
+(define flag-s-ind  0)
+(define flag-z-ind  1)
+(define flag-v-ind  2)
+(define flag-c-ind  3)
+(define flag-cb-ind 4)
 
 (define debug-HERA-hw #f)
 
@@ -113,13 +118,20 @@
   (set! memory-code (make-vector memsize  0)))
 
 
+(define/contract (get-reg  r)
+  (->                      hera-reg-num? hera-val?)
+  (vector-ref registers r))
 (define/contract (set-reg! r             v)
   (->                      hera-reg-num? hera-val? void?)
   (when (> r 0)
     (vector-set! registers r v)))
-(define/contract (get-reg  r)
-  (->                      hera-reg-num? hera-val?)
-  (vector-ref registers r))
+
+(define/contract (get-flag  flag-ind)
+  (->                       integer?   boolean?)
+  (vector-ref  flags flag-ind))
+(define/contract (set-flag! flag-ind  value)
+  (->                       integer?   boolean?  void?)
+  (vector-set! flags flag-ind value))
 
 (define (inc-PC!)
   (set! PC (modulo (+ PC 1) wordlim)))
@@ -133,10 +145,13 @@
   (let ([hera-val (modulo value wordlim)])
     (set-reg! reg hera-val)
     (when (> 0 also-set-flags)
-      (eprintf "ToDo: set flags"))  ; ToDo
+      (set-flag! flag-z-ind (= value 0))
+      (set-flag! flag-s-ind (> 0 (bitwise-and hera-val (/ wordlim 2))))
+      (when (not (= (bitwise-and value (/ wordlim 2)) (bitwise-and hera-val (/ wordlim 2)))) (eprintf "Hmmm, questionable sign flag for ~a/~a" value hera-val))
+      (set-flag! flag-v-ind (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2)))))  ; sign = carry
+      (set-flag! flag-c-ind (> 0 (bitwise-and value wordlim))))
     (inc-PC!)
   ))
-(eprintf "WARNING:  HERA-hardware.rkt does not currently update any flags\n")
 
 (define SETLO
   (new hera-op% [pattern "1110 dddd vvvvvvvv"]

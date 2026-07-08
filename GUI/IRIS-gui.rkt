@@ -134,6 +134,24 @@
      [label "Command"]
      [auto-resize #t])
 
+; now going to make function to display addresses
+
+(define (code-address-display address)
+  (cond
+    [(= (send code-address-choice get-selection) 0) ; seeing which option is chosen from the dropdown
+     (format "~a" address)] ; if dec
+    [else
+     (hex-display address)])) ; if hex
+
+; making some fake placeholder functions to convert hex-asb and asb-hex which we can later replace with actual functions
+
+(define (hex->assembly command)
+  (format "ASM(~a)" (hex-display command))) ; if input is 0x003 it should give ASM(0x003) --> fake as hell i know but still need it for testing my code display
+
+(define (assembly->hex assembly-string) ; this returns hex for asb but for now it just gives 0 --> once again very fake but need it for testing
+  0)
+
+
 
 
 ; register panel starts here

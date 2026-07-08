@@ -151,8 +151,112 @@
 (define (assembly->hex assembly-string) ; this returns hex for asb but for now it just gives 0 --> once again very fake but need it for testing
   0)
 
+; now going to make function to display the commands
 
+(define (code-command-display command)
+  (cond
+    [(= current-command-mode 0) ; checks if we need command in asb or hex
+     (hex-display command)] ; if hex
+    [else
+     (hex->assembly command)])) ; if asb
 
+; as the command column is editable, we need to pars our hex string values as numbers
+
+(define (remove-hex-prefix s)
+  (cond
+    [(regexp-match? #rx"^(0x|0X)" s) ; this checks if the string starts from 0x or 0X -> learnt from AI
+     (substring s 2)] ; if it does then remove first 2 characters
+    [else s])) ; if not then keep same
+
+(define (hex-string->number s) ; this converts the hex string to a number
+  (string->number
+   (remove-hex-prefix s) 16)) ; this removes the 0x/0X and then reads the string as base 16
+
+; making address labels now
+
+(define (make-code-address-labels i)
+  (cond
+    [(= i code-row-count) '()] ; stop once we reach max row count
+    [else
+     (cons (new message%
+                [parent code-address-column]
+                [label (code-address-display (vector-ref code-address-values i))] ; gets address i and displays it as needed (dec or hex)
+                [auto-resize #t])
+           (make-code-address-labels (+ i 1)))])) ; recursion
+
+(define code-address-labels ; makes the labels
+  (make-code-address-labels 0))
+
+; now making the editable command fields
+
+(define (make-code-command-fields i)
+  (cond
+    [(= i code-row-count) '()] ; stop once we reach max row count
+    [else
+     (cons (new text-field%
+                [parent code-command-column]
+                [label #f] ; no label
+                [init-value (code-command-display (vector-ref code-command-values i))] ; this adds all the initial values by taking them from a list using recursion
+                [min-width 160])
+           (make-code-command-fields (+ i 1)))]))
+
+(define code-command-fields
+  (make-code-command-fields 0))
+
+; function to update row
+
+(define (set-code-row! row address command) ; row -> which row, address -> the adresss we need in that row, command -> the command we need in that row
+  (vector-set! code-address-values row address) ; change the list internally with new address
+  (vector-set! code-command-values row command) ; change the list internally with new command
+
+  (define address-label
+    (list-ref code-address-labels row)) ; getting current address row 
+
+  (define command-field
+    (list-ref code-command-fields row)) ; getting current command in that row
+
+  (send address-label set-label
+        (code-address-display address))
+
+  (send command-field set-value
+        (code-command-display command)))
+
+; saving an edited command row --> reading what the user typed and saving it
+
+(define (save-code-row! row)
+  (define command-field
+    (list-ref code-command-fields row)) ; getting the field where the text is written
+
+  (define typed-text
+    (send command-field get-value)) ; reads the text inside that field
+
+  (define new-hex-value
+    (cond
+      [(= current-command-mode 0) ; if hex
+       (hex-string->number typed-text)] ; parse text as hex
+      [else
+       (assembly->hex typed-text)])) ; if not, then convert it from assembly to hex
+                                                                     ;--> '''the function for this right now is fake, will add proper function when we have it in backend'''
+  (when new-hex-value ; learnt from ai, when is needed here so our GUI does not crash if the conversion to hex failed
+    (vector-set! code-command-values row new-hex-value))) ; updates the list of commands
+
+; now making a function which will save all command fields when we switch from hex to asb or asb to hex
+
+(define (save-code-fields! i)
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (save-code-row! i)
+     (save-code-fields! (+ i 1))]))
+
+; refreshing/re-building all code rows
+
+(define (refresh-code-display! i)
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (set-code-row! i (vector-ref code-address-values i) (vector-ref code-command-values i)) ; takes the row numbers using i, then using that it finds the address and command from value lists, then re-builds the row using this
+     (refresh-code-display! (+ i 1))])) ; recursion
 
 ; register panel starts here
 (define register-panel (new group-box-panel%
@@ -518,8 +622,16 @@
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         ;(displayln "Run Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
-        (set-code-display!
-         "'the code in the file'"))])
+        ;(set-code-display!
+        (set-code-row! 0 0 #xE111)
+        (set-code-row! 1 1 #xE219)
+        (set-code-row! 2 2 #xA312)
+        (set-code-row! 3 3 #xA111)
+        (set-code-row! 4 4 #xB412)
+        (set-code-row! 5 5 #xB521)
+        (set-code-row! 6 6 #xB114)
+        (set-code-row! 7 7 #x0002)
+         "'the code in the file'")])
 
 
 (new button%

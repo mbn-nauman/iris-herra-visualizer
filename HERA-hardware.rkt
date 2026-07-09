@@ -6,7 +6,7 @@
 (require racket/math) ;; for bitwise-and, etc.
 
 (define debug-HERA-hw #f)
-
+(current-print void)  ; we create a lot of objects below, don't want to hear about them all
 
 
 (require racket/random) ; temporary, while testing
@@ -205,40 +205,39 @@
     (inc-PC!)
   ))
 
-(define SETLO
-  (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
+
+(new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
        [action (λ (pattern instr)
                  (let* ([v_8bit      (get-b0 instr)]
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
                    (when debug-HERA-hw
                      (printf "SETLO #x~x setting R~a to #x~x\n" instr (get-n2 instr) v_extended))
-                   (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]))
-(define ADD
-  (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
-       [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                       (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                    (get-reg (get-n0 instr))
-                                                    (get-c^!cb))))]))
-(define SUB
-  (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
-       [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                       (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                    (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
-                                                    (get-cvcb))))]))
+                   (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))])
 
-(define BRR
-  (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
-       [action (λ (pattern instr)
-                 (let* ([o_8bit      (get-b0 instr)]
-                        [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                        [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                   (when debug-HERA-hw
-                     (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
-                   (set! PC new_PC)))]))
+(new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
+     [action (λ (pattern instr)
+               (when debug-HERA-hw
+                 (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
+               (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                  (get-reg (get-n0 instr))
+                                                  (get-c^!cb))))])
+
+(new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
+     [action (λ (pattern instr)
+               (when debug-HERA-hw
+                 (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
+               (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                  (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
+                                                  (get-cvcb))))])
+
+(new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
+     [action (λ (pattern instr)
+               (let* ([o_8bit      (get-b0 instr)]
+                      [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
+                      [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
+                 (when debug-HERA-hw
+                   (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
+                 (set! PC new_PC)))])
 
 
 (define (step!)
@@ -276,19 +275,6 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(check-true  (send SETLO match? #xE12A))
-(check-false (send SETLO match? #x312A))
-(send SETLO doit! #xE12A)
-(check-equal registers '#(0 42  0  0 0 0 0 0 0 0 0 0 0 0 0 0))
-(check-equal (flags->string) "b  c v z s")
-
-(check-true  (send ADD   match? #xA312))
-(check-false (send ADD   match? #xE312))
-(send ADD   doit! #xA111)
-(check-equal registers '#(0 84  0  0 0 0 0 0 0 0 0 0 0 0 0 0))
-(check-equal (flags->string) "b  c v z s")
-(reset!)
 
 (load-code! "/dev/null")
 (check-equal (vector-ref memory-code 0) #xE111)

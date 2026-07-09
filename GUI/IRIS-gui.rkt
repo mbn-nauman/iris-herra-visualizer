@@ -52,6 +52,7 @@
   (make-vector code-row-count 0))
 
 (define current-command-mode 0) ; 0 is for hex, 1 is for assembly
+(define current-address-mode 1) ; 0 is for dec, 1 is for hex
 
 
 ; this initializes each address line to its number and command to 0
@@ -72,24 +73,27 @@
   (new horizontal-panel%
        [parent code-panel]
        [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
+       [spacing 25]
        [stretchable-height #f])) ; this forced racket to not auto strech the code option panel row and keep it the size just needed for dropdown menu
 
 (define code-address-choice ; drop down for address column
   (new choice%
        [parent code-options-panel]
-       [label "Address"]
+       [label #f]
        [choices '("Dec" "Hex")]
        [selection 1] ; auto choose hex initially
        [callback
-        (lambda (choice event) ; for now we have just made a placeholder type thing here for event
-          (refresh-code-display! 0))])) ; this means to rebuild all rows starting from row 0
-                                        ; --> have to make this function, havent made it yet ;;;remove comment if have made it;;;
+        (lambda (choice event)
+          (save-code-fields! 0) ; first saves the fields
+          (set! current-address-mode 
+                (send code-address-choice get-selection)) ; sets the current address code to the new selections chosen
+          (refresh-code-display! 0))])) ; rebuilds the rows according to the new selection
 
 
 (define code-command-choice ; drop down for command column
   (new choice%
        [parent code-options-panel]
-       [label "Command"]
+       [label #f]
        [choices '("Hex" "Assembly")]
        [selection 0] ; auto choose hex initially
        [callback
@@ -138,10 +142,15 @@
 
 (define (code-address-display address)
   (cond
-    [(= (send code-address-choice get-selection) 0) ; seeing which option is chosen from the dropdown
+    [(= current-address-mode 0) ; checks if we need dec or hex
      (format "~a" address)] ; if dec
     [else
      (hex-display address)])) ; if hex
+
+; now going to make a function to parse decimals like we did later in this file for hex so dont need to make it for hex
+
+(define (dec-string->number s) ; changes "15" to 15 so string to int 
+  (string->number s 10))
 
 ; making some fake placeholder functions to convert hex-asb and asb-hex which we can later replace with actual functions
 
@@ -174,18 +183,19 @@
 
 ; making address labels now
 
-(define (make-code-address-labels i)
+(define (make-code-address-fields i)
   (cond
     [(= i code-row-count) '()] ; stop once we reach max row count
     [else
-     (cons (new message%
+     (cons (new text-field%
                 [parent code-address-column]
-                [label (code-address-display (vector-ref code-address-values i))] ; gets address i and displays it as needed (dec or hex)
-                [auto-resize #t])
-           (make-code-address-labels (+ i 1)))])) ; recursion
+                [label #f] ; no label
+                [init-value (code-address-display (vector-ref code-address-values i))] ; this adds all the inital address labels/values by taking them from a list we created earlier
+                [min-width 100])
+           (make-code-address-fields (+ i 1)))]))
 
-(define code-address-labels ; makes the labels
-  (make-code-address-labels 0))
+(define code-address-fields
+  (make-code-address-fields 0))
 
 ; now making the editable command fields
 
@@ -209,38 +219,63 @@
   (vector-set! code-address-values row address) ; change the list internally with new address
   (vector-set! code-command-values row command) ; change the list internally with new command
 
-  (define address-label
-    (list-ref code-address-labels row)) ; getting current address row 
+  (define address-field
+    (list-ref code-address-fields row)) ; getting current address row 
 
   (define command-field
     (list-ref code-command-fields row)) ; getting current command in that row
 
-  (send address-label set-label
+  (send address-field set-value
         (code-address-display address))
 
   (send command-field set-value
         (code-command-display command)))
 
+; savinf an edited address row --> reading what the user typed and saving it
+
+(define (save-code-address-row! row)
+  (define address-field
+    (list-ref code-address-fields row)) ; getting the field where the text is written
+
+  (define typed-text
+    (send address-field get-value)) ; reads the text inside that field
+
+  (define new-address
+    (cond
+      [(= current-address-mode 0) ; if dec
+       (dec-string->number typed-text)] ; parse text as dec
+      [else
+       (hex-string->number typed-text)])) ; if not, then parse it as hex
+
+  (when new-address  ; learnt from ai, when is needed here so our GUI does not crash if the conversion failed
+    (vector-set! code-address-values row new-address))) ; updates the list of addresses
+
 ; saving an edited command row --> reading what the user typed and saving it
 
-(define (save-code-row! row)
+(define (save-code-command-row! row)
   (define command-field
     (list-ref code-command-fields row)) ; getting the field where the text is written
 
   (define typed-text
     (send command-field get-value)) ; reads the text inside that field
 
-  (define new-hex-value
+  (define new-command
     (cond
       [(= current-command-mode 0) ; if hex
        (hex-string->number typed-text)] ; parse text as hex
       [else
        (assembly->hex typed-text)])) ; if not, then convert it from assembly to hex
                                                                      ;--> '''the function for this right now is fake, will add proper function when we have it in backend'''
-  (when new-hex-value ; learnt from ai, when is needed here so our GUI does not crash if the conversion to hex failed
-    (vector-set! code-command-values row new-hex-value))) ; updates the list of commands
+  (when new-command ; learnt from ai, when is needed here so our GUI does not crash if the conversion to hex failed
+    (vector-set! code-command-values row new-command))) ; updates the list of commands
 
-; now making a function which will save all command fields when we switch from hex to asb or asb to hex
+; helper for top 2 functions to save both
+
+(define (save-code-row! row)
+  (save-code-address-row! row)
+  (save-code-command-row! row))
+
+; now making a function which will save all command fields when we switch from hex to asb or asb to hex or if we switch between dec or hex in addresses
 
 (define (save-code-fields! i)
   (cond

@@ -258,6 +258,9 @@
      (set-code-row! i (vector-ref code-address-values i) (vector-ref code-command-values i)) ; takes the row numbers using i, then using that it finds the address and command from value lists, then re-builds the row using this
      (refresh-code-display! (+ i 1))])) ; recursion
 
+
+
+
 ; register panel starts here
 (define register-panel (new group-box-panel%
                        [parent content]

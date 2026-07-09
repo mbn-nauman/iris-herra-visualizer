@@ -1,5 +1,5 @@
 #lang racket
-(require racket/gui/base racket/string)
+(require racket/gui/base racket/string "HERA-api.rkt")
 
 (define frame (new frame% ; this creates the full window on which we will make the visualizer on
   [label "IRIS"]

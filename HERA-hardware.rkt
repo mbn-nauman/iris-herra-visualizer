@@ -104,13 +104,17 @@
 )
 
 
-; I've not done much with Racket classes; relying on https://docs.racket-lang.org/guide/classes.html
+
+; I've not done much with Racket classes; relying on https://docs.racket-lang.org/guide/classes.html and Claude
 ;    -Dave W
 (define hera-op%
   (class object%
-    (init pattern action)
+    (init pattern name action)
     (define _p pattern)
+    (define _n name)
     (define _a action)
+    (super-new)
+    
     (define and-mask  (mask-for "1"  "0"  "" pattern)) ; see examples in tests above
     (define  or-mask  (mask-for "0"  "1"  "" pattern))
 
@@ -124,12 +128,30 @@
     (define/public (doit!  instr) (if (match? instr) (_a _p instr) (error (format "Instr #x~x doesn't match op ~s" instr _p))))
     
     (define/public (str-verbose) (format "HERA op ~s: and-mask=#x~x or-mask=#x~x" _p and-mask or-mask))
-    (super-new)
-    ;(field (andmask #x0000))    ; integer? ... 1's here mean 1's are needed in the op)
-    ;(field ( ormask #xffff))    ; integer? ... 1's here mean 1's are needed in the op)
-    ;(field (action! '()))       ; func to update state vars
-    ; (field (op->string (λ () "Illegal instruction"))) ; func for output
+
+    (let ([n3 (get-n3 and-mask)])  ; or-mask would also work; here, we assume that the leftmost 4 bits tell us how to dispatch...
+      (when (vector-ref hera-op%-dispatch-table n3)         ; ... this means LOAD and STORE will each appear twice, and ...
+        (eprintf
+         " ==> HERA-hardware.rkt: ~s overwriting op ~a <=="
+                                  _n                n3))
+      (vector-set! hera-op%-dispatch-table n3 this))
     ))
+
+; Fake class-field
+(define hera-op%-dispatch-table
+  (make-vector 16 #f))
+
+(define/contract (hera-op%-dispatch instr)
+  (->                               hera-val? void?)
+  (let* ([n3 (get-n3 instr)]
+         [op (vector-ref hera-op%-dispatch-table n3)])
+    (if op
+        (if (send op match? instr)
+            (send op doit!  instr)
+            (eprintf " ==> HERA-hardware.rkt inconsistency: op for #x0~x doesn't think it matches #x~x <==\n" n3 instr))
+        (let ()
+          (printf "Illegal instruction (no op implemented): ~a\n" instr)
+          (inc-PC!)))))
 
 
 
@@ -167,7 +189,7 @@
   (->*                           (hera-reg-num?   integer?)   (integer?)            void?)
   (let ([hera-val (modulo value wordlim)])
     (when debug-HERA-hw
-      (printf "set-reg-inc-PC for R~a <-- ~a/~a\n" reg value hera-val))
+      (printf "set-reg-inc-PC for R~a <-- ~a/~a (PC ~a)\n" reg value hera-val PC))
     (set-reg! reg hera-val)
     (when (> also-set-flags 0)
       (set-flag! flag-z-ind
@@ -183,7 +205,7 @@
   ))
 
 (define SETLO
-  (new hera-op% [pattern "1110 dddd vvvvvvvv"]
+  (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
        [action (λ (pattern instr)
                  (let* ([v_8bit      (get-b0 instr)]
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
@@ -191,7 +213,7 @@
                      (printf "SETLO #x~x setting R~a to #x~x\n" instr (get-n2 instr) v_extended))
                    (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]))
 (define ADD
-  (new hera-op% [pattern "1010 dddd aaaa bbbb"]
+  (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
        [action (λ (pattern instr)
                  (when debug-HERA-hw
                        (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
@@ -199,7 +221,7 @@
                                                     (get-reg (get-n0 instr))
                                                     (get-c^!cb))))]))
 (define SUB
-  (new hera-op% [pattern "1011 dddd aaaa bbbb"]
+  (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
        [action (λ (pattern instr)
                  (when debug-HERA-hw
                        (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
@@ -208,29 +230,19 @@
                                                     (get-cvcb))))]))
 
 (define BRR
-  (new hera-op% [pattern "0000 0000 oooooooo"]
+  (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
        [action (λ (pattern instr)
                  (let* ([o_8bit      (get-b0 instr)]
                         [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                        [new_PC      (modulo (+ PC o_extended) memsize)])
+                        [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
                    (when debug-HERA-hw
                      (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
                    (set! PC new_PC)))]))
 
 
 (define (step!)
-  (let ([op (vector-ref memory-code PC)])
-    (when debug-HERA-hw
-      (printf "Executing instruction #x~x at location #x~x\n" op PC))
-    (cond  ; ToDo: replace with vector for get-n3, sub-hash/vector for cases 2 and 3
-      [(send SETLO match? op)   (send SETLO doit! op)]
-      [(send   ADD match? op)   (send   ADD doit! op)]
-      [(send   SUB match? op)   (send   SUB doit! op)]
-      [(send   BRR match? op)   (send   BRR doit! op)]
-      [else  ; ToDo: consider throwing an error instead?
-       (eprintf ; https://docs.racket-lang.org/reference/Writing.html#%28def._%28%28quote._~23~25kernel%29._eprintf%29%29
-        "Illegal instruction: #x~x"  op)
-       (inc-PC!)])))
+  (let ([instr (vector-ref memory-code PC)])
+    (hera-op%-dispatch instr)))
 
 
 ;
@@ -279,22 +291,28 @@
 
 (load-code! "/dev/null")
 (check-equal (vector-ref memory-code 0) #xE111)
+(check-equal PC 0)
 
 (step!)  ; execute SETLO 1 0x11
 (check-equal registers '#(0 17 00  0 0 0 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
+(check-equal PC 1)
 (step!)  ; execute SETLO 2 0x19
 (check-equal registers '#(0 17 25  0 0 0 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
+(check-equal PC 2)
 (step!)  ; execute ADD R3 R1 R2
 (check-equal registers '#(0 17 25 42 0 0 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
+(check-equal PC 3)
 (step!)  ; execute ADD R1 R1 R1
 (check-equal registers '#(0 34 25 42 0 0 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
+(check-equal PC 4)
 (step!)  ; execute SUB R4 R1 R2, with no carry, that means borrow-in, so 34-25-1 --> 8
 (check-equal registers '#(0  34 25 42 08  0 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")  ; NOT-BORROW --> CARRY(F4) IS ON
+(check-equal PC 5)
 (step!)  ; execute SUB R5 R2 R1, with carry set from before, so no borrow-in, 25-34 --> -9 with a Borrow
 (check-equal registers '#(0 34 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")  ; BORROWED (so nn C), but got a NEGATIVE number (so S is on)

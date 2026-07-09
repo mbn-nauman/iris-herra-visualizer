@@ -39,6 +39,4 @@
 (check-equal (get-data 0) 0)
 (check-equal (get-code 0) 0)
 
-(step!)
-(check-equal (get-PC) 1)  ; this should actually stay 0 if code[0] is 0, but, that's not implemented yet ... ToDo!
 

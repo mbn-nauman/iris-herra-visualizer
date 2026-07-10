@@ -32,7 +32,7 @@
 (define flag-cb-ind 4)
 
 (eprintf " ==> HERA-hardware.rkt warning: overflow (V) flag not being set correctly, will always show as false (v not V) to let tests pass <==\n")
-(eprintf " ==> HERA-hardware.rkt warning: INC only partly implemented (4-bit offsets) <==\n")
+(eprintf " ==> HERA-hardware.rkt warning: INC and DEC only partly implemented (INC with offset 1 works...) <==\n")
 (eprintf " ==> HERA-hardware.rkt warning: STORE totally untested <==\n")
 
 (define/contract (set-step-trace! do-we-trace)
@@ -140,26 +140,24 @@
     
     (define/public (str-debug-verbose) (format "HERA op ~s: and-mask=#x~x or-mask=#x~x" _p and-mask or-mask))
 
-    (let ([n3 (get-n3 and-mask)])  ; or-mask would also work; here, we assume that the leftmost 4 bits tell us how to dispatch...
-      (when (vector-ref hera-op%-dispatch-table n3)         ; ... this means LOAD and STORE will each appear twice, and ...
-        (eprintf
-         " ==> HERA-hardware.rkt: ~s overwriting op ~a in dispatch table <=="
-                                  _n                n3))
-      (vector-set! hera-op%-dispatch-table n3 this))
+    (let ([n3 (get-n3 and-mask)])  ; or-mask would also work; here, we use the leftmost 4 bits to start the dispatch...
+      (vector-set! hera-op%-dispatch-table n3 (cons this (vector-ref hera-op%-dispatch-table n3))))
     ))
 
 ; Fake class-field
 (define hera-op%-dispatch-table
-  (make-vector 16 #f))
+  (make-vector 16 `()))    ; a vector of _lists_ of ops that can match this 4-bit prefix, e.g., element 0x0E has only SETLO, 0x03 has a lot of stuff
 
 (define/contract (hera-op%-dispatch instr)
   (->                               hera-val? void?)
-  (let* ([n3 (get-n3 instr)]
-         [op (vector-ref hera-op%-dispatch-table n3)])
-    (if op
-        (if (send op match? instr)
-            (send op doit!  instr)
-            (eprintf " ==> HERA-hardware.rkt inconsistency: op for #x0~x doesn't think it matches #x~x <==\n" n3 instr))
+  (let* ([n3      (get-n3 instr)]
+         [ops     (vector-ref hera-op%-dispatch-table n3)]
+         [matches ops])
+    (if (not (empty? matches))
+        (let ([op (first matches)])
+          (when (> (length matches) 1)
+            (eprintf " ==> HERA-hardware.rkt inconsistency: more than one match in group ~a for #x~x <==\n" n3 instr))
+          (send op doit!  instr))
         (let ()
           (printf "Illegal instruction (no op implemented): ~a\n" instr)
           (inc-PC!)))))
@@ -170,11 +168,14 @@
   
 (define/contract (hera-op%-str instr)
   (->                          hera-val? string?)
-  (let* ([n3 (get-n3 instr)]
-         [op (vector-ref hera-op%-dispatch-table n3)])
-    (if op
-        (send op str  instr)
-        (format "ASM(~a)" (hex-str instr)))))
+  (let* ([n3      (get-n3 instr)]
+         [ops     (vector-ref hera-op%-dispatch-table n3)]
+         [matches ops])
+    (match (length matches)
+      [1    (send (first matches) str instr)]
+      [0    (format "ASM(~a)  // no matching instruction found" (hex-str instr))]
+      [else (format "ASM(~a)  // WARNING multiple matching operations found for this instruction" (hex-str instr))])))
+        
 
 
 

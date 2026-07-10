@@ -48,7 +48,7 @@
        (range 13))
   (printf "\n ==== Now, lets run some steps ====\n")
   (set-step-trace! #t)
-  (map (λ (step) (step!))
+  (map (λ (step) (step!) (printf "   Reg:\t~a\n" (vector-take registers 11)))
        (range 24))
   (set-step-trace! #f)
   (void)

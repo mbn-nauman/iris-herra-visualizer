@@ -1,6 +1,8 @@
 #lang racket
 (require racket/gui/base racket/string "HERA-api.rkt")
+(load-code! "")
 
+ 
 (define frame (new frame% ; this creates the full window on which we will make the visualizer on
   [label "IRIS"]
   [width 900]
@@ -43,7 +45,7 @@
                       [label "Code / File"]))
 
 
-(define code-row-count 8) ; number of code rows shown for now = 8
+(define code-row-count 12) ; number of code rows shown for now = 8
 
 (define code-address-values ; this stores addresses for each row
   (make-vector code-row-count 0)) ; vector: fixed size list
@@ -183,19 +185,19 @@
 
 ; making address labels now
 
-(define (make-code-address-fields i)
+(define (make-code-address-fields i [remain 12])
   (cond
-    [(= i code-row-count) '()] ; stop once we reach max row count
+    [(<= remain 0) '()] ; stop once we reach max row count
     [else
      (cons (new text-field%
                 [parent code-address-column]
                 [label #f] ; no label
-                [init-value (code-address-display (vector-ref code-address-values i))] ; this adds all the inital address labels/values by taking them from a list we created earlier
+                [init-value (format "~s ~s" (code-address-display i) (get-code i))] ; this adds all the inital address labels/values by taking them from a list we created earlier
                 [min-width 100])
-           (make-code-address-fields (+ i 1)))]))
+           (make-code-address-fields (+ i 1) (- remain 1)))]))
 
 (define code-address-fields
-  (make-code-address-fields 0))
+  (make-code-address-fields (max 0 (- (get-PC) 2))))
 
 ; now making the editable command fields
 

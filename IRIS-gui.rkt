@@ -165,6 +165,15 @@
    (remove-hex-prefix s) 16)) ; this removes the 0x/0X and then reads the string as base 16
 
 
+
+
+
+
+
+
+
+
+
 ; register panel starts here
 (define register-panel (new group-box-panel%
                        [parent content]

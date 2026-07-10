@@ -32,7 +32,8 @@
 (define flag-cb-ind 4)
 
 (eprintf " ==> HERA-hardware.rkt warning: overflow (V) flag not being set correctly, will always show as false (v not V) to let tests pass <==\n")
-(eprintf " ==> HERA-hardware.rkt warning: INC and LOAD only partly implemented (4-bit offsets) <==\n")
+(eprintf " ==> HERA-hardware.rkt warning: INC only partly implemented (4-bit offsets) <==\n")
+(eprintf " ==> HERA-hardware.rkt warning: STORE totally untested <==\n")
 
 (define/contract (set-step-trace! do-we-trace)
   (->                             boolean?    void?)
@@ -292,12 +293,33 @@
                           [reg      (get-n2 instr)])
                        (format "INC(R~x, ~x)" reg (+ 1 eeeeee))))])
 
-  (new hera-op% [pattern "0100 dddd oooo bbbb"] [name "LOAD"]   ; TODO: LOAD with o4=true
-       [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                   (printf "LOAD  #x~x R~a = MEM[~a]\n" instr (get-n2 instr) (get-reg (get-n0 instr))))
-                 (set-reg-inc-PC! (get-n2 instr) (vector-ref memory-data (get-reg (get-n0 instr))) (bitwise-ior flag-s-mask flag-z-mask)))]
-       [to-string hera-op%-arith-to-str])
+  (let ([LOAD-doit
+         (λ (pattern instr)
+           (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))]
+                 [reg      (get-n2 instr)])
+             (set-reg-inc-PC!
+              (get-n2 instr)
+              (vector-ref memory-data (+ offset (get-reg (get-n0 instr))))
+              (bitwise-ior flag-s-mask flag-z-mask))))]
+        [LOAD-to-string
+         (λ (pattern instr op)
+           (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))]
+                 [reg      (get-n2 instr)])
+             (format "LOAD(R~x, ~a,R~x)" reg offset (get-n0 instr))))])
+    (new hera-op% [pattern "0100 dddd oooo bbbb"] [name "LOAD"] [action LOAD-doit] [to-string LOAD-to-string])
+    (new hera-op% [pattern "0101 dddd oooo bbbb"] [name "LOAD"] [action LOAD-doit] [to-string LOAD-to-string]) ; big-offset load
+    )
+  (let ([STORE-doit  ; WARNING: COMPLETELY UNTESTED  ToDo: test, duh
+         (λ (pattern instr)
+           (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))])
+             (vector-set! memory-data (+ offset (get-reg (get-n0 instr))) (get-reg (get-n2 instr)))))]
+        [STORE-to-string
+         (λ (pattern instr op)
+           (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))])
+             (format "STORE(R~x, ~a,R~x)" (get-n2 instr) offset (get-n0 instr))))])
+    (new hera-op% [pattern "0110 dddd oooo bbbb"] [name "STORE"] [action STORE-doit] [to-string STORE-to-string])
+    (new hera-op% [pattern "0111 dddd oooo bbbb"] [name "STORE"] [action STORE-doit] [to-string STORE-to-string]) ; big-offset
+    )
 
   (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
        [action (λ (pattern instr)
@@ -380,6 +402,10 @@
 (load-data! "")
 (check-equal (vector-ref memory-code 0) #xE111)
 (check-equal PC 0)
+
+(check-equal (hera-op%-str (vector-ref memory-code 0))  "SETLO(R1, 17)")
+(check-equal (hera-op%-str (vector-ref memory-code 2))  "ADD(R3, R1,R2)")
+(check-equal (hera-op%-str (vector-ref memory-code 10)) "LOAD(R8, 0,R7)")
 
 ; (set-step-trace! #t)  ; shows stuff getting printed ... set it back again, or maybe make "trace" a parameter
 

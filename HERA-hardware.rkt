@@ -24,7 +24,7 @@
 (define/contract (get-c^!cb) (-> integer?) (if (and  (vector-ref  flags 3) (not (vector-ref  flags 4))) 1 0))  ; effective carry for ADD
 (define/contract (get-cvcb)  (-> integer?) (if (or   (vector-ref  flags 3)      (vector-ref  flags 4))  1 0))  ; effective carry for SUB
 
-(define (setf-s v)  (vector-set! flags 0)) 
+; (define (setf-s v)  (vector-set! flags 0)) 
 (define flag-s-ind  0) (define flag-s-mask #x01)
 (define flag-z-ind  1) (define flag-z-mask #x02)
 (define flag-v-ind  2) (define flag-v-mask #x04)
@@ -254,8 +254,6 @@
        [action (λ (pattern instr)
                  (let* ([v_8bit      (get-b0 instr)]
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
-                   (when debug-HERA-hw
-                     (printf "SETLO #x~x setting R~a to #x~x\n" instr (get-n2 instr) v_extended))
                    (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]
        [to-string (λ (pattern instr op)
                     (let ([vvvvvvvv (bitwise-and instr #xff)]
@@ -266,28 +264,36 @@
 
   (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
        [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                   (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
                  (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
                                                     (get-reg (get-n0 instr))
                                                     (get-c^!cb))))]
        [to-string hera-op%-arith-to-str])
   (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
        [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                   (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
                  (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
                                                     (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
                                                     (get-cvcb))))]
        [to-string hera-op%-arith-to-str])
 
+  (new hera-op% [pattern "0011 dddd 11ee eeee"] [name "DEC"]
+       [action (λ (pattern instr)
+                 (let ([eeeeee (bitwise-and instr #x3f)]
+                       [d-reg  (get-n2 instr)])
+                   (set-reg-inc-PC! d-reg (+ (- (- wordlim 1) (+ eeeeee 1)) ; eeeeee+1 bit-flipped, i.e., just add 1 below to have -(eeeeee+1)
+                                             (get-reg d-reg)
+                                             1))))]
+       [to-string (λ (pattern instr op)
+                    (let ([eeeeee (bitwise-and instr #x3f)]
+                          [reg      (get-n2 instr)])
+                      (format "DEC(R~x, ~x)" reg (+ 1 eeeeee))))])
+
   (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
        [action (λ (pattern instr)
-                 (when debug-HERA-hw
-                   (printf "INC   #x~x R~a += ~a\n" instr (get-n2 instr) (get-n0 instr)))
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-n0 instr) 1
-                                                    (get-reg (get-n2 instr))
-                                                    0)))]
+                 (let ([eeeeee (bitwise-and instr #x3f)]
+                       [d-reg  (get-n2 instr)])
+                   (set-reg-inc-PC! d-reg (+ eeeeee 1
+                                             (get-reg d-reg)
+                                             0))))]
        [to-string (λ (pattern instr op)
                     (let ([eeeeee (bitwise-and instr #x3f)]
                           [reg      (get-n2 instr)])
@@ -326,8 +332,6 @@
                  (let* ([o_8bit      (get-b0 instr)]
                         [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
                         [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                   (when debug-HERA-hw
-                     (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
                    (set! PC new_PC)))]
        [to-string (λ (pattern instr op)
                     (let ([oooooooo (bitwise-and instr #xff)])

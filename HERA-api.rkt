@@ -47,9 +47,10 @@
   (map (λ (addr) (printf "~a\t~a\n" (hex-str addr) (get-code-asm addr)))
        (range 13))
   (printf "\n ==== Now, lets run some steps ====\n")
+  (load-code!)  ;  get the data memory set up so the LOAD's work
   (set-step-trace! #t)
   (map (λ (step) (step!) (printf "   Reg:\t~a\n" (vector-take registers 11)))
-       (range 24))
+       (range 25))
   (set-step-trace! #f)
   (void)
   )

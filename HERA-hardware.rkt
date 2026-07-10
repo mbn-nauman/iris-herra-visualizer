@@ -270,7 +270,11 @@
   (vector-set! memory-data 1 5)
   (vector-set! memory-data 2 7)
   (vector-set! memory-data 3 11)
-  (vector-set! memory-data 4 13)) 
+  (vector-set! memory-data 4 13)
+  (vector-set! memory-data 5 17)
+  (vector-set! memory-data 6 19)
+  (vector-set! memory-data 7 23)
+  (vector-set! memory-data 8 27)) 
   ;(set! memory-data 
         ;(list->vector (random-sample (list 0 1 2 3 4 7 12 17 65535 65534 (random -4 48) (random -4 48) (random -4 48) (random -4 48))
          ;                            memsize))))
@@ -287,7 +291,7 @@
   (vector-set! memory-code 7 #x0002)
   (vector-set! memory-code 8 #x0081)  ; we should skip this; branch somewhere crazy if we don't
   (vector-set! memory-code 9 #x3780)
-  (vector-set! memory-code 10 #x4908)
+  (vector-set! memory-code 10 #x4807)
   (vector-set! memory-code 11 #x00FB)  ; branch back to  6
 )
 
@@ -334,108 +338,114 @@
 (step!)                 ; instr. 7, BRR +2
 (check-equal registers '#(0 25 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
-(check-equal PC 9)      ; INC R8
+(check-equal PC 9)      ; INC R7
 (step!)
-
-(display "OTHER CHECKS REMOVED WHILE DAVE IS DEBUGGING")
-
-'(
 (check-equal registers '#(0 25 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
 (step!)
-(check-equal registers '#(0 25 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 25 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
 (step!)                 ; instr. 9, BRR -3
-(check-equal registers '#(0 25 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 25 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
 (step!)                 ; SUB R1 R1 R4 (25-8, no borrow-in, no borrow-out)
-(check-equal registers '#(0 16 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
-;;;;; (check-equal (flags->string) "b  c v Z s")
-(check-equal PC 7)      ; BRR +2
-(step!)
-(check-equal registers '#(0 16 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
-;;;;; (check-equal (flags->string) "b  C v z s")
-(check-equal PC 9)      ; INC R8
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
-;;;;; (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
-;;;;; (check-equal (flags->string) "b  c v z s")
-(check-equal PC 11)     ; BRR -5
-(step!)
-(check-equal registers '#(0 17 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
-;;;;; (check-equal (flags->string) "b  C v z s")
-(check-equal PC 6)
-(step!)                 ; SUB R1 R1 R4 (17 - 8 no borrow)
-(check-equal registers '#(0 09 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 16 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
 (check-equal PC 7)      ; BRR +2
 (step!)
-(check-equal registers '#(0 09 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 16 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
-(check-equal PC 9)      ; INC R8
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 9)      ; INC R7
+(step!)
+(check-equal registers '#(0 16 25 42 08 65527 0 2 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
+(step!)
+(check-equal registers '#(0 16 25 42 08 65527 0 2 7 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
 (step!)
-(check-equal registers '#(0 09 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
-(check-equal (flags->string) "b  C v z s")
+(check-equal registers '#(0 16 25 42 08 65527 0 2 7 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3 (09 - 8, no borrow)
-(check-equal registers '#(0 01 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)                 ; SUB R1 R1 R4 (17 - 8 with borrow)
+(check-equal registers '#(0 07 25 42 08 65527 0 2 7 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
 (check-equal PC 7)      ; BRR +2
 (step!)
-(check-equal registers '#(0 01 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 07 25 42 08 65527 0 2 7 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
-(check-equal PC 9)      ; INC R8
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 9)      ; INC R7
+(step!)
+(check-equal registers '#(0 07 25 42 08 65527 0 3 7 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
+(step!)
+(check-equal registers '#(0 07 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
 (step!)
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
-(check-equal (flags->string) "b  C v z s")
+(check-equal registers '#(0 07 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3 (01- 8, no borrow-in (so -7 answer), but borrow-out (c) and S
-(check-equal registers '#(0 65529 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(step!)                 ; SUB R1 R1 R3 (07 - 8, WITH borrow, and BORROW-OUT)
+(check-equal registers '#(0 65534 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")
 (check-equal PC 7)      ; BRR +2
 (step!)
-(check-equal registers '#(0 65529 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 65534 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")
-(check-equal PC 9)      ; INC R8
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 9)      ; INC R7
+(step!)
+(check-equal registers '#(0 65534 25 42 08 65527 0 4 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
+(step!)
+(check-equal registers '#(0 65534 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
 (step!)
-(check-equal registers '#(0 65529 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
-(check-equal (flags->string) "b  c v z S")
+(check-equal registers '#(0 65534 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3 (-7 - 8, with borrow-in (so -16 answer), no borrow-out (C) and S
-(check-equal registers '#(0 65520 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(step!)                 ; SUB R1 R1 R3
+(check-equal registers '#(0 65525 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  C v z S")
+(check-equal PC 7)      ; BRR +2
+(step!)
+(check-equal registers '#(0 65525 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  C v z S")
+(check-equal PC 9)      ; INC R7
+(step!)
+(check-equal registers '#(0 65525 25 42 08 65527 0 5 13 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
+(step!)
+(check-equal registers '#(0 65525 25 42 08 65527 0 5 17 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
+(check-equal PC 11)     ; BRR -5
+(step!)
+(check-equal registers '#(0 65525 25 42 08 65527 0 5 17 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  c v z s")
+(check-equal PC 6)
+(step!)                 ; SUB R1 R1 R3
+(check-equal registers '#(0 65516 25 42 08 65527 0 5 17 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z S")
 (check-equal PC 7)      ; BRR +2
 (step!) 
-(check-equal registers '#(0 65520 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
+(check-equal registers '#(0 65516 25 42 08 65527 0 5 17 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z S")
-(check-equal PC 9)      ; INC R8
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 9)      ; INC R7
+(step!)
+(check-equal registers '#(0 65516 25 42 08 65527 0 6 17 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
-(check-equal PC 10)     ; LOAD R9 <- M[R8]
-(check-equal registers '#(0 01 25 42 08 65527 0 1 0 0 0 0 0 0 0 0))
+(check-equal PC 10)     ; LOAD R8 <-- M[R7]
+(step!)
+(check-equal registers '#(0 65516 25 42 08 65527 0 6 19 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
-)
+
 (reset!)

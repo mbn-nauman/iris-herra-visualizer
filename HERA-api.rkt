@@ -6,7 +6,7 @@
 (provide load-data! load-code!)
 
 (define verbose #f)
-
+(define show-demo #t)  ; change to #t to do the demo
 
 (define/contract (get-PC)  ; return the program counter
   (-> integer?) 
@@ -26,7 +26,7 @@
   (vector-ref memory-code iadr))
 (define/contract (get-code-asm iadr)      ; -->
   (->                          hera-addr? string?)
-  "ADD(R3, R5,R2) // e.g.")
+  (hera-op%-str (get-code iadr)))
  
 
 
@@ -39,4 +39,18 @@
 (check-equal (get-data 0) 0)
 (check-equal (get-code 0) 0)
 
+; try out this demo, if you like
+(when show-demo
+  (printf   " ====  Welcome to the HERA-api demo   ====\n\n")
+  (load-code!)
+  (printf   " ==== Here's our example HERA program ====\n")
+  (map (λ (addr) (printf "~a\t~a\n" (hex-str addr) (get-code-asm addr)))
+       (range 13))
+  (printf "\n ==== Now, lets run some steps ====\n")
+  (set-step-trace! #t)
+  (map (λ (step) (step!))
+       (range 24))
+  (set-step-trace! #f)
+  (void)
+  )
 

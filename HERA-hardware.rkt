@@ -1,13 +1,13 @@
 #lang racket
-(provide memsize wordlim PC flags registers memory-data memory-code reset! load-data! load-code! step!)
+(provide memsize wordlim PC flags registers memory-data memory-code reset! load-data! load-code! step! set-step-trace!)
+(provide hex-str hera-op%-str)   ; hex-str prints hexidecimal 8-bit or 16-bit numbers 
 (provide hera-val? hera-addr? hera-reg-num?)
 
 (require "check.rkt")
 (require racket/math) ;; for bitwise-and, etc.
 
 (define debug-HERA-hw #f)
-(current-print void)  ; we create a lot of objects below, don't want to hear about them all
-
+(define HERA-hw-step-trace #f)
 
 (require racket/random) ; temporary, while testing
 
@@ -33,6 +33,11 @@
 
 (eprintf " ==> HERA-hardware.rkt warning: overflow (V) flag not being set correctly, will always show as false (v not V) to let tests pass <==\n")
 (eprintf " ==> HERA-hardware.rkt warning: INC and LOAD only partly implemented (4-bit offsets) <==\n")
+
+(define/contract (set-step-trace! do-we-trace)
+  (->                             boolean?    void?)
+  (set! HERA-hw-step-trace do-we-trace))
+
 
 (define (flags->string) ; for N=5, not _quite_ worth doing something cool with map
   (let ([sep " "])
@@ -130,7 +135,7 @@
     (define/public (match? me)   (and (= (bitwise-and me and-mask) and-mask)
                                       (= (bitwise-ior me  or-mask)  or-mask)))
     (define/public (doit!  instr) (if (match? instr) (_a _p instr)      (error (format "Instr #x~x doesn't match op ~s\n" instr _p))))
-    (define/public (str    instr) (if (match? instr) (_s _p instr this) (error (format "Instr #x~x doesn't match op ~s for 'str'\n" instr _p))))
+    (define/public (str    instr) (if (match? instr) (_s _p instr _n)   (error (format "Instr #x~x doesn't match op ~s for 'str'\n" instr _p))))
     
     (define/public (str-debug-verbose) (format "HERA op ~s: and-mask=#x~x or-mask=#x~x" _p and-mask or-mask))
 
@@ -157,13 +162,18 @@
         (let ()
           (printf "Illegal instruction (no op implemented): ~a\n" instr)
           (inc-PC!)))))
+(define/contract (hex-str num         [hits 4]  [prefix "0x"])
+  (->*                    (hera-val?) (integer? string?)       string?)
+  (string-append prefix
+                 (string-upcase (~r num #:base 16 #:min-width hits #:pad-string "0"))))  ; thanks, Claude, for reading all those manuals ... THIS IS COPY-PASTED CODE
+  
 (define/contract (hera-op%-str instr)
   (->                          hera-val? string?)
   (let* ([n3 (get-n3 instr)]
          [op (vector-ref hera-op%-dispatch-table n3)])
     (if op
-        (send op str  instr op)      ; the default arith printer wants to know which "op" specifically, as a parameter
-        (format "ASM(0x~x)" instr))))
+        (send op str  instr)
+        (format "ASM(~a)" (hex-str instr)))))
 
 
 
@@ -221,110 +231,142 @@
   ))
 
 (define hera-op%-arith-to-str
-  (λ (pattern instr op)
-    (format "~s(R~x, R~x,R~x)" (send op _n) (get-n2 instr) (get-n1 instr) (get-n0 instr))))
-(define hera-op%-any-to-str-tmp
-  (λ (pattern instr op)
-    (format "ASM(0x~x) // missing str method" instr)))
-                      
+  (λ (pattern instr name)
+    (format "~a(R~x, R~x,R~x)" name (get-n2 instr) (get-n1 instr) (get-n0 instr))))
+;;(define hera-op%-any-to-str-tmp
+;;  (λ (pattern instr name)
+;;    (format "ASM(0x~x) // missing str method" instr)))
 
-(new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
+
+;;
+;; Now, the HERA instructions themselves
+;;   These auto-enroll in the dispatch table,
+;;   so there's no need to capture them with ; (define ...
+;;   and thus we don't want a lot of chatter about their un-captured values, turning off current-output
+
+
+; Claude suggested parameterize would work with current-print
+; https://docs.racket-lang.org/reference/parameters.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._parameterize%29%29
+(parameterize ([current-print void])
+
+  (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
        [action (λ (pattern instr)
                  (let* ([v_8bit      (get-b0 instr)]
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
                    (when debug-HERA-hw
                      (printf "SETLO #x~x setting R~a to #x~x\n" instr (get-n2 instr) v_extended))
                    (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]
-       [to-string hera-op%-any-to-str-tmp])
-(define add-tmp-var
-(new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
-     [action (λ (pattern instr)
-               (when debug-HERA-hw
-                 (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-               (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                  (get-reg (get-n0 instr))
-                                                  (get-c^!cb))))]
-     [to-string hera-op%-arith-to-str])
-  )
-(new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
-     [action (λ (pattern instr)
-               (when debug-HERA-hw
-                 (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
-               (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                  (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
-                                                  (get-cvcb))))]
-     [to-string hera-op%-arith-to-str])
+       [to-string (λ (pattern instr op)
+                    (let ([vvvvvvvv (bitwise-and instr #xff)]
+                          [reg      (get-n2 instr)])
+                      (if (> (bitwise-and vvvvvvvv #x80) 0)
+                          (format "SETLO(R~x, -~a)" reg (- #xff vvvvvvvv))
+                          (format "SETLO(R~x, ~a)"  reg         vvvvvvvv ))))])
 
-(new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
-     [action (λ (pattern instr)
-               (when debug-HERA-hw
-                 (printf "INC   #x~x R~a += ~a\n" instr (get-n2 instr) (get-n0 instr)))
-               (set-reg-inc-PC! (get-n2 instr) (+ (get-n0 instr) 1
-                                                  (get-reg (get-n2 instr))
-                                                  0)))]
-     [to-string hera-op%-any-to-str-tmp])
-
-(new hera-op% [pattern "0100 dddd oooo bbbb"] [name "LOAD"]   ; TODO: LOAD with o4=true
-     [action (λ (pattern instr)
-               (when debug-HERA-hw
-                 (printf "LOAD  #x~x R~a = MEM[~a]\n" instr (get-n2 instr) (get-reg (get-n0 instr))))
-               (set-reg-inc-PC! (get-n2 instr) (vector-ref memory-data (get-reg (get-n0 instr))) (bitwise-ior flag-s-mask flag-z-mask)))]
-     [to-string hera-op%-arith-to-str])
-
-(new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
-     [action (λ (pattern instr)
-               (let* ([o_8bit      (get-b0 instr)]
-                      [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                      [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
+  (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
+       [action (λ (pattern instr)
                  (when debug-HERA-hw
-                   (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
-                 (set! PC new_PC)))]
-     
-     [to-string (λ (pattern instr op)
-                  (let ([oooooooo (bitwise-and instr #xff)])
-                    (if (bitwise-and oooooooo #x80)
-                        (format "BRR(-~a)" (- #x80 oooooooo))
-                        (format "BRR(+~a)"  oooooooo))))])
+                   (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                    (get-reg (get-n0 instr))
+                                                    (get-c^!cb))))]
+       [to-string hera-op%-arith-to-str])
+  (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
+       [action (λ (pattern instr)
+                 (when debug-HERA-hw
+                   (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                    (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
+                                                    (get-cvcb))))]
+       [to-string hera-op%-arith-to-str])
 
+  (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
+       [action (λ (pattern instr)
+                 (when debug-HERA-hw
+                   (printf "INC   #x~x R~a += ~a\n" instr (get-n2 instr) (get-n0 instr)))
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-n0 instr) 1
+                                                    (get-reg (get-n2 instr))
+                                                    0)))]
+       [to-string (λ (pattern instr op)
+                    (let ([eeeeee (bitwise-and instr #x3f)]
+                          [reg      (get-n2 instr)])
+                       (format "INC(R~x, ~x)" reg (+ 1 eeeeee))))])
+
+  (new hera-op% [pattern "0100 dddd oooo bbbb"] [name "LOAD"]   ; TODO: LOAD with o4=true
+       [action (λ (pattern instr)
+                 (when debug-HERA-hw
+                   (printf "LOAD  #x~x R~a = MEM[~a]\n" instr (get-n2 instr) (get-reg (get-n0 instr))))
+                 (set-reg-inc-PC! (get-n2 instr) (vector-ref memory-data (get-reg (get-n0 instr))) (bitwise-ior flag-s-mask flag-z-mask)))]
+       [to-string hera-op%-arith-to-str])
+
+  (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
+       [action (λ (pattern instr)
+                 (let* ([o_8bit      (get-b0 instr)]
+                        [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
+                        [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
+                   (when debug-HERA-hw
+                     (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
+                   (set! PC new_PC)))]
+       [to-string (λ (pattern instr op)
+                    (let ([oooooooo (bitwise-and instr #xff)])
+                      (if (> (bitwise-and oooooooo #x80) 0)
+                          (format "BRR(-~a) \t// ~a" (- #xff oooooooo) (hex-str instr))
+                          (format "BRR(+~a) \t// ~a"         oooooooo  (hex-str instr)))))])
+
+  (void)  ;; otherwise the result of the _parameterize_ will be printed with the outside-of-parameterize settings 
+)
 
 (define (step!)
   (let ([instr (vector-ref memory-code PC)])
-    (hera-op%-dispatch instr)))
+    (when HERA-hw-step-trace
+      (printf "~a\t~a" (hex-str PC) (hera-op%-str instr)))
+    (hera-op%-dispatch instr)
+    (when HERA-hw-step-trace
+      (newline))   ))
 
 
 ;
 ;  File I?O
 ;
 
-(define/contract (load-data! filename)  ; -->
-  (->                       string?     void?)
-  (vector-set! memory-data 0 #xdead)
-  (vector-set! memory-data 1 5)
-  (vector-set! memory-data 2 7)
-  (vector-set! memory-data 3 11)
-  (vector-set! memory-data 4 13)
-  (vector-set! memory-data 5 17)
-  (vector-set! memory-data 6 19)
-  (vector-set! memory-data 7 23)
-  (vector-set! memory-data 8 27)) 
-  ;(set! memory-data 
-        ;(list->vector (random-sample (list 0 1 2 3 4 7 12 17 65535 65534 (random -4 48) (random -4 48) (random -4 48) (random -4 48))
-         ;                            memsize))))
+(define/contract (load-data!    [filename ""])  ; -->
+  (->*                       () (string?)     void?)
+  (if (string=? filename "")
+      (let ()
+        (vector-set! memory-code 0 #xE111)
+        (vector-set! memory-data 0 #xdead)
+        (vector-set! memory-data 1 5)
+        (vector-set! memory-data 2 7)
+        (vector-set! memory-data 3 11)
+        (vector-set! memory-data 4 13)
+        (vector-set! memory-data 5 17)
+        (vector-set! memory-data 6 19)
+        (vector-set! memory-data 7 23)
+        (vector-set! memory-data 8 27))
+      (error "Sorry, load-code! does not yet load from files, please omit name or use \"\" for sample test program"))
+  )
+      ;(set! memory-data 
+      ;(list->vector (random-sample (list 0 1 2 3 4 7 12 17 65535 65534 (random -4 48) (random -4 48) (random -4 48) (random -4 48))
+      ;                            memsize))))
 
-(define/contract (load-code! filename)  ; -->
-  (->                       string?     void?)
-  (vector-set! memory-code 0 #xE111)
-  (vector-set! memory-code 1 #xE219)
-  (vector-set! memory-code 2 #xA312)
-  (vector-set! memory-code 3 #xA111)
-  (vector-set! memory-code 4 #xB412)
-  (vector-set! memory-code 5 #xB521)
-  (vector-set! memory-code 6 #xB114)
-  (vector-set! memory-code 7 #x0002)
-  (vector-set! memory-code 8 #x0081)  ; we should skip this; branch somewhere crazy if we don't
-  (vector-set! memory-code 9 #x3780)
-  (vector-set! memory-code 10 #x4807)
-  (vector-set! memory-code 11 #x00FB)  ; branch back to  6
+(define/contract (load-code!    [filename ""])  ; -->
+  (->*                       () (string?)     void?)
+  (if (string=? filename "")
+      (let ()
+        (vector-set! memory-code 0 #xE111)
+        (vector-set! memory-code 1 #xE219)
+        (vector-set! memory-code 2 #xA312)
+        (vector-set! memory-code 3 #xA111)
+        (vector-set! memory-code 4 #xB412)
+        (vector-set! memory-code 5 #xB521)
+        (vector-set! memory-code 6 #xB114)
+        (vector-set! memory-code 7 #x0002)
+        (vector-set! memory-code 8 #x0081)  ; we should skip this; branch somewhere crazy if we don't
+        (vector-set! memory-code 9 #x3780)
+        (vector-set! memory-code 10 #x4807)
+        (vector-set! memory-code 11 #x00FB)  ; branch back to  6
+        )
+      (error "Sorry, load-code! does not yet load from files, please omit name or use \"\" for sample test program"))
 )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -334,10 +376,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(load-code! "/dev/null")
-(load-data! "/dev/null")
+(load-code! "")
+(load-data! "")
 (check-equal (vector-ref memory-code 0) #xE111)
 (check-equal PC 0)
+
+; (set-step-trace! #t)  ; shows stuff getting printed ... set it back again, or maybe make "trace" a parameter
 
 (step!)  ; execute SETLO 1 0x11
 (check-equal registers '#(0 17 00  0 0 0 0 0 0 0 0 0 0 0 0 0))
@@ -479,5 +523,10 @@
 (check-equal registers '#(0 65516 25 42 08 65527 0 6 19 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 11)     ; BRR -5
+
+
+; consider printing this:
+; (vector-take (vector-map hera-op%-str memory-code) 16)
+; or running after (set-step-trace! #t)
 
 (reset!)

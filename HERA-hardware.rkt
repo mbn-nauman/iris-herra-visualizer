@@ -33,7 +33,7 @@
 
 (eprintf " ==> HERA-hardware.rkt warning: overflow (V) flag not being set correctly, will always show as false (v not V) to let tests pass <==\n")
 (eprintf " ==> HERA-hardware.rkt warning: INC and DEC only partly implemented (INC with offset 1 works...) <==\n")
-(eprintf " ==> HERA-hardware.rkt warning: STORE totally untested <==\n")
+(eprintf " ==> HERA-hardware.rkt warning: STORE and many other things totally untested, say UNTESTED in comment or OP name when printed <==\n")
 
 (define/contract (set-step-trace! do-we-trace)
   (->                             boolean?    void?)
@@ -240,6 +240,9 @@
 (let ([hera-op%-arith-to-str    ; Use this for to-string for all arithmetic, but just write it once
        (λ (pattern instr name)
          (format "~a(R~x, R~x,R~x)" name (get-n2 instr) (get-n1 instr) (get-n0 instr)))]
+      [hera-op%-as-ASM
+       (λ (pattern instr name)
+         (format "ASM(0x~x)  // Dave too lazy to make ~a pretty" (hex-str instr) name))]  ; for when I'm lazy
       [just-sz-flags (bitwise-ior flag-s-mask flag-z-mask)]
       [no-flags 0])
   
@@ -340,15 +343,45 @@
         [STORE-to-string
          (λ (pattern instr op)
            (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))])
-             (format "STORE(R~x, ~a,R~x)" (get-n2 instr) offset (get-n0 instr))))])
+             (format "STORE(R~x, ~a,R~x)  // UNTESTED" (get-n2 instr) offset (get-n0 instr))))])
     (new hera-op% [pattern "0110 dddd oooo bbbb"] [name "STORE"] [action STORE-doit] [to-string STORE-to-string])
     (new hera-op% [pattern "0111 dddd oooo bbbb"] [name "STORE"] [action STORE-doit] [to-string STORE-to-string]) ; big-offset
     )
 
   ;;; 0x3***   A BUNCH OF THINGS GATHERED TO GETHER IN A CAVE AND GROOVING WITH A PICT
-  (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
+  (let  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
+      ([flag-blender (λ (blend-bits bit-vec)
+                       (vector-set! flags flag-s-ind  (blend-bits (vector-ref flags flag-s-ind)  (> (bitwise-and bit-vec flag-s-mask) 0)))
+                       (vector-set! flags flag-z-ind  (blend-bits (vector-ref flags flag-z-ind)  (> (bitwise-and bit-vec flag-z-mask) 0)))
+                       (vector-set! flags flag-v-ind  (blend-bits (vector-ref flags flag-v-ind)  (> (bitwise-and bit-vec flag-v-mask) 0)))
+                       (vector-set! flags flag-c-ind  (blend-bits (vector-ref flags flag-c-ind)  (> (bitwise-and bit-vec flag-c-mask) 0)))
+                       (vector-set! flags flag-cb-ind (blend-bits (vector-ref flags flag-cb-ind) (> (bitwise-and bit-vec #x10) 0))))]
+       [flag-grabber (λ (instr) (+ (/ (get-n3 instr) #x10) (get-n0 instr)))]
+       )      
+    ;;     0x3*[0-5]* SHIFTS
 
-    ;;     0x3[8+]**  INC and DEC
+    
+    ;;     0x3*[6]* FON/FOFF/FSET/FSET4
+    (new hera-op% [pattern "0011 000V 0110 vvvv"] [name "FON_UNTESTED"]
+         [action (λ (pattern instr)
+                   (flag-blender bitwise-ior (flag-grabber instr)))]
+         [to-string hera-op%-as-ASM])
+    (new hera-op% [pattern "0011 100V 0110 vvvv"] [name "FOFF_UNTESTED"]
+         [action (λ (pattern instr)
+                   (flag-blender (λ (f v) (and f (not v))) (flag-grabber instr)))]
+         [to-string hera-op%-as-ASM])
+    (new hera-op% [pattern "0011 010V 0110 vvvv"] [name "FSET5_UNTESTED"]
+         [action (λ (pattern instr)
+                   (flag-blender (λ (f v) v) (flag-grabber instr)))]
+         [to-string hera-op%-as-ASM])
+    (new hera-op% [pattern "0011 110V 0110 vvvv"] [name "FSET4_UNTESTED"]
+         [action (λ (pattern instr)
+                   (flag-blender (λ (f v) v) (bitwise-and #x0f (flag-grabber instr))))]
+         [to-string hera-op%-as-ASM])
+
+    ;;     0x3*[7]* SAVEF and RSTRF  
+    
+    ;;     0x3*[8+]*  INC and DEC
     (new hera-op% [pattern "0011 dddd 11ee eeee"] [name "DEC"]
          [action (λ (pattern instr)
                    (let ([eeeeee (bitwise-and instr #x3f)]
@@ -360,7 +393,6 @@
                       (let ([eeeeee (bitwise-and instr #x3f)]
                             [reg      (get-n2 instr)])
                         (format "DEC(R~x, ~x)" reg (+ 1 eeeeee))))])
-
     (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
          [action (λ (pattern instr)
                    (let ([eeeeee (bitwise-and instr #x3f)]
@@ -373,13 +405,13 @@
                             [reg      (get-n2 instr)])
                         (format "INC(R~x, ~x)" reg (+ 1 eeeeee))))])
     )
-  ;;; 0x3*** now done
+  ;;; 0x3*** ends here
 
   ;;; 0x2***   CALL, RETURN, INTERRUPT HANDLING
   (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
     (void)
     )
-  ;;; 0x2*** now done
+  ;;; 0x2*** ends here
 
   ;;; 0x[01]*** Branches
   (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
@@ -396,7 +428,7 @@
                             (format "BRR(-~a) \t// ~a" (- #xff oooooooo) (hex-str instr))
                             (format "BRR(+~a) \t// ~a"         oooooooo  (hex-str instr)))))])
     )
-  ;;; 0x[01]*** now done
+  ;;; 0x[01]*** ends here
 
   (void)  ;; otherwise the result of the _parameterize_ will be printed with the outside-of-parameterize settings 
 )

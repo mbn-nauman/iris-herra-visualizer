@@ -226,74 +226,97 @@
     (inc-PC!)
   ))
 
-(define hera-op%-arith-to-str
-  (λ (pattern instr name)
-    (format "~a(R~x, R~x,R~x)" name (get-n2 instr) (get-n1 instr) (get-n0 instr))))
-;;(define hera-op%-any-to-str-tmp
-;;  (λ (pattern instr name)
-;;    (format "ASM(0x~x) // missing str method" instr)))
-
 
 ;;
 ;; Now, the HERA instructions themselves
 ;;   These auto-enroll in the dispatch table,
 ;;   so there's no need to capture them with ; (define ...
 ;;   and thus we don't want a lot of chatter about their un-captured values, turning off current-output
-
-
-; Claude suggested parameterize would work with current-print
+; Claude suggested parameterize would work with current-print, to prevent chatter while scanning this file
 ; https://docs.racket-lang.org/reference/parameters.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._parameterize%29%29
-(parameterize ([current-print void])
+; (parameterize ([current-print void])
+;; parameterize no longer needed because I have a "let" inside it, and that returns void, which parameterize would also have done
 
+(let ([hera-op%-arith-to-str    ; Use this for to-string for all arithmetic, but just write it once
+       (λ (pattern instr name)
+         (format "~a(R~x, R~x,R~x)" name (get-n2 instr) (get-n1 instr) (get-n0 instr)))]
+      [just-sz-flags (bitwise-ior flag-s-mask flag-z-mask)]
+      [no-flags 0])
+  
+  ;;; 0xF***  SETHI     
+  (new hera-op% [pattern "1111 dddd vvvvvvvv"] [name "SETLO"]
+       [action (λ (pattern instr)
+                 (let* ([v-shifted   (* (get-b0 instr) #x100)]
+                        [d-reg       (get-n2 instr)])
+                   (set-reg-inc-PC! d-reg
+                                    (bitwise-ior (bitwise-and (get-reg d-reg) #x00ff) v-shifted)
+                                    no-flags)))]
+       [to-string (λ (pattern instr op)
+                    (let ([vvvvvvvv (get-b0 instr)]
+                          [d-reg    (get-n2 instr)])
+                      (format "SETHI(R~x, ~a)  // UNTESTED" d-reg  (hex-str vvvvvvvv 2))))])
+
+  ;;; 0xE***  SETLO
   (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
        [action (λ (pattern instr)
                  (let* ([v_8bit      (get-b0 instr)]
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
-                   (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]
+                   (set-reg-inc-PC! (get-n2 instr) v_extended no-flags)))]
        [to-string (λ (pattern instr op)
-                    (let ([vvvvvvvv (bitwise-and instr #xff)]
-                          [reg      (get-n2 instr)])
+                    (let ([vvvvvvvv (get-b0 instr)]
+                          [d-reg    (get-n2 instr)])
                       (if (> (bitwise-and vvvvvvvv #x80) 0)
-                          (format "SETLO(R~x, -~a)" reg (- #xff vvvvvvvv))
-                          (format "SETLO(R~x, ~a)"  reg         vvvvvvvv ))))])
+                          (format "SETLO(R~x, -~a)" d-reg (- #xff vvvvvvvv))
+                          (format "SETLO(R~x, ~a)"  d-reg         vvvvvvvv ))))])
 
-  (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
+  ;;; 0xD*** XOR
+  (new hera-op% [pattern "1101 dddd aaaa bbbb"] [name "XOR_UNTESTED"]
        [action (λ (pattern instr)
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                    (get-reg (get-n0 instr))
-                                                    (get-c^!cb))))]
+                 (set-reg-inc-PC! (get-n2 instr)
+                                  (bitwise-xor (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))
+                                  just-sz-flags))]
        [to-string hera-op%-arith-to-str])
+  
+  ;;; 0xC*** MUL
+  (new hera-op% [pattern "1100 dddd aaaa bbbb"] [name "MUL_UNTESTED"]
+       [action (λ (pattern instr)
+                 (set-reg-inc-PC! (get-n2 instr) (* (get-reg (get-n1 instr))
+                                                    (get-reg (get-n0 instr)))))]
+       [to-string hera-op%-arith-to-str])
+  
+  ;;; 0xB*** SUB
   (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
        [action (λ (pattern instr)
                  (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
                                                     (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
                                                     (get-cvcb))))]
        [to-string hera-op%-arith-to-str])
-
-  (new hera-op% [pattern "0011 dddd 11ee eeee"] [name "DEC"]
+  
+  ;;; 0xA*** ADD
+  (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
        [action (λ (pattern instr)
-                 (let ([eeeeee (bitwise-and instr #x3f)]
-                       [d-reg  (get-n2 instr)])
-                   (set-reg-inc-PC! d-reg (+ (- (- wordlim 1) (+ eeeeee 1)) ; eeeeee+1 bit-flipped, i.e., just add 1 below to have -(eeeeee+1)
-                                             (get-reg d-reg)
-                                             1))))]
-       [to-string (λ (pattern instr op)
-                    (let ([eeeeee (bitwise-and instr #x3f)]
-                          [reg      (get-n2 instr)])
-                      (format "DEC(R~x, ~x)" reg (+ 1 eeeeee))))])
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
+                                                    (get-reg (get-n0 instr))
+                                                    (get-c^!cb))))]
+       [to-string hera-op%-arith-to-str])
 
-  (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
+  ;;; 0x9*** OR
+  (new hera-op% [pattern "1001 dddd aaaa bbbb"] [name "OR_UNTESTED"]
        [action (λ (pattern instr)
-                 (let ([eeeeee (bitwise-and instr #x3f)]
-                       [d-reg  (get-n2 instr)])
-                   (set-reg-inc-PC! d-reg (+ eeeeee 1
-                                             (get-reg d-reg)
-                                             0))))]
-       [to-string (λ (pattern instr op)
-                    (let ([eeeeee (bitwise-and instr #x3f)]
-                          [reg      (get-n2 instr)])
-                       (format "INC(R~x, ~x)" reg (+ 1 eeeeee))))])
+                 (set-reg-inc-PC! (get-n2 instr)
+                                  (bitwise-ior (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))
+                                  just-sz-flags))]
+       [to-string hera-op%-arith-to-str])
 
+  ;;; 0x8*** AND
+  (new hera-op% [pattern "1000 dddd aaaa bbbb"] [name "AND_UNTESTED"]
+       [action (λ (pattern instr)
+                 (set-reg-inc-PC! (get-n2 instr)
+                                  (bitwise-and (get-reg (get-n1 instr)) (get-reg (get-n0 instr)))
+                                  just-sz-flags))]
+       [to-string hera-op%-arith-to-str])
+
+  ;;; 0x[7654]*** STORE/LOAD
   (let ([LOAD-doit
          (λ (pattern instr)
            (let ([offset   (+ (get-n1 instr) (/ (bitwise-and instr #x1000) #x1000))]
@@ -322,17 +345,58 @@
     (new hera-op% [pattern "0111 dddd oooo bbbb"] [name "STORE"] [action STORE-doit] [to-string STORE-to-string]) ; big-offset
     )
 
-  (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
-       [action (λ (pattern instr)
-                 (let* ([o_8bit      (get-b0 instr)]
-                        [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                        [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                   (set! PC new_PC)))]
-       [to-string (λ (pattern instr op)
-                    (let ([oooooooo (bitwise-and instr #xff)])
-                      (if (> (bitwise-and oooooooo #x80) 0)
-                          (format "BRR(-~a) \t// ~a" (- #xff oooooooo) (hex-str instr))
-                          (format "BRR(+~a) \t// ~a"         oooooooo  (hex-str instr)))))])
+  ;;; 0x3***   A BUNCH OF THINGS GATHERED TO GETHER IN A CAVE AND GROOVING WITH A PICT
+  (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
+
+    ;;     0x3[8+]**  INC and DEC
+    (new hera-op% [pattern "0011 dddd 11ee eeee"] [name "DEC"]
+         [action (λ (pattern instr)
+                   (let ([eeeeee (bitwise-and instr #x3f)]
+                         [d-reg  (get-n2 instr)])
+                     (set-reg-inc-PC! d-reg (+ (- (- wordlim 1) (+ eeeeee 1)) ; eeeeee+1 bit-flipped, i.e., just add 1 below to have -(eeeeee+1)
+                                               (get-reg d-reg)
+                                               1))))]
+         [to-string (λ (pattern instr op)
+                      (let ([eeeeee (bitwise-and instr #x3f)]
+                            [reg      (get-n2 instr)])
+                        (format "DEC(R~x, ~x)" reg (+ 1 eeeeee))))])
+
+    (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
+         [action (λ (pattern instr)
+                   (let ([eeeeee (bitwise-and instr #x3f)]
+                         [d-reg  (get-n2 instr)])
+                     (set-reg-inc-PC! d-reg (+ eeeeee 1
+                                               (get-reg d-reg)
+                                               0))))]
+         [to-string (λ (pattern instr op)
+                      (let ([eeeeee (bitwise-and instr #x3f)]
+                            [reg      (get-n2 instr)])
+                        (format "INC(R~x, ~x)" reg (+ 1 eeeeee))))])
+    )
+  ;;; 0x3*** now done
+
+  ;;; 0x2***   CALL, RETURN, INTERRUPT HANDLING
+  (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
+    (void)
+    )
+  ;;; 0x2*** now done
+
+  ;;; 0x[01]*** Branches
+  (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
+
+    (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
+         [action (λ (pattern instr)
+                   (let* ([o_8bit      (get-b0 instr)]
+                          [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
+                          [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
+                     (set! PC new_PC)))]
+         [to-string (λ (pattern instr op)
+                      (let ([oooooooo (bitwise-and instr #xff)])
+                        (if (> (bitwise-and oooooooo #x80) 0)
+                            (format "BRR(-~a) \t// ~a" (- #xff oooooooo) (hex-str instr))
+                            (format "BRR(+~a) \t// ~a"         oooooooo  (hex-str instr)))))])
+    )
+  ;;; 0x[01]*** now done
 
   (void)  ;; otherwise the result of the _parameterize_ will be printed with the outside-of-parameterize settings 
 )

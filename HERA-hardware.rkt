@@ -25,14 +25,13 @@
 (define/contract (get-cvcb)  (-> integer?) (if (or   (vector-ref  flags 3)      (vector-ref  flags 4))  1 0))  ; effective carry for SUB
 
 (define (setf-s v)  (vector-set! flags 0)) 
-(define flag-s-ind  0)
-(define flag-z-ind  1)
-(define flag-v-ind  2)
-(define flag-c-ind  3)
+(define flag-s-ind  0) (define flag-s-mask #x01)
+(define flag-z-ind  1) (define flag-z-mask #x02)
+(define flag-v-ind  2) (define flag-v-mask #x04)
+(define flag-c-ind  3) (define flag-c-mask #x08)
 (define flag-cb-ind 4)
 
 (eprintf " ==> HERA-hardware.rkt warning: overflow (V) flag not being set correctly, will always show as false (v not V) to let tests pass <==\n")
-(eprintf " ==> HERA-hardware.rkt warning: overflow (V) and carry (C) will both be inappropriately cleared for a LOAD instruction <==\n")
 (eprintf " ==> HERA-hardware.rkt warning: INC and LOAD only partly implemented (4-bit offsets) <==\n")
 
 (define (flags->string) ; for N=5, not _quite_ worth doing something cool with map
@@ -112,10 +111,12 @@
 ;    -Dave W
 (define hera-op%
   (class object%
-    (init pattern name action)
+    (init pattern name action to-string)
     (define _p pattern)
     (define _n name)
     (define _a action)
+    (define _s to-string)
+    
     (super-new)
     
     (define and-mask  (mask-for "1"  "0"  "" pattern)) ; see examples in tests above
@@ -128,14 +129,15 @@
     
     (define/public (match? me)   (and (= (bitwise-and me and-mask) and-mask)
                                       (= (bitwise-ior me  or-mask)  or-mask)))
-    (define/public (doit!  instr) (if (match? instr) (_a _p instr) (error (format "Instr #x~x doesn't match op ~s" instr _p))))
+    (define/public (doit!  instr) (if (match? instr) (_a _p instr)      (error (format "Instr #x~x doesn't match op ~s\n" instr _p))))
+    (define/public (str    instr) (if (match? instr) (_s _p instr this) (error (format "Instr #x~x doesn't match op ~s for 'str'\n" instr _p))))
     
-    (define/public (str-verbose) (format "HERA op ~s: and-mask=#x~x or-mask=#x~x" _p and-mask or-mask))
+    (define/public (str-debug-verbose) (format "HERA op ~s: and-mask=#x~x or-mask=#x~x" _p and-mask or-mask))
 
     (let ([n3 (get-n3 and-mask)])  ; or-mask would also work; here, we assume that the leftmost 4 bits tell us how to dispatch...
       (when (vector-ref hera-op%-dispatch-table n3)         ; ... this means LOAD and STORE will each appear twice, and ...
         (eprintf
-         " ==> HERA-hardware.rkt: ~s overwriting op ~a <=="
+         " ==> HERA-hardware.rkt: ~s overwriting op ~a in dispatch table <=="
                                   _n                n3))
       (vector-set! hera-op%-dispatch-table n3 this))
     ))
@@ -155,6 +157,13 @@
         (let ()
           (printf "Illegal instruction (no op implemented): ~a\n" instr)
           (inc-PC!)))))
+(define/contract (hera-op%-str instr)
+  (->                          hera-val? string?)
+  (let* ([n3 (get-n3 instr)]
+         [op (vector-ref hera-op%-dispatch-table n3)])
+    (if op
+        (send op str  instr op)      ; the default arith printer wants to know which "op" specifically, as a parameter
+        (format "ASM(0x~x)" instr))))
 
 
 
@@ -188,25 +197,36 @@
 ; for now, also-set-flags is 0 for "no flags", #xff for all flags;
 ;          could extend to allow other bits patterns for which flags to set
 ; Note that value may be outside of HERA's signed or unsigned range, e.g., 17-25 can be 8, not #xFFF8
-(define/contract (set-reg-inc-PC! reg             value       [also-set-flags #xff])
+(define/contract (set-reg-inc-PC! reg             value       [also-set-flags #x0f])
   (->*                           (hera-reg-num?   integer?)   (integer?)            void?)
   (let ([hera-val (modulo value wordlim)])
     (when debug-HERA-hw
       (printf "set-reg-inc-PC for R~a <-- ~a/~a (PC ~a)\n" reg value hera-val PC))
     (set-reg! reg hera-val)
     (when (> also-set-flags 0)
-      (set-flag! flag-z-ind
-                 (= value 0))
-      (set-flag! flag-s-ind
-                 (> (bitwise-and value (/ wordlim 2)) 0))
-      (when (not (= (bitwise-and value (/ wordlim 2)) (bitwise-and hera-val (/ wordlim 2)))) (eprintf "Hmmm, questionable sign flag for ~a/~a" value hera-val))
-      (set-flag! flag-v-ind
-                 (not (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2))))))
-      (set-flag! flag-c-ind
-                 (> (bitwise-and value wordlim) 0)))
+      (when (bitwise-and also-set-flags flag-s-mask)
+        (set-flag! flag-s-ind
+                   (> (bitwise-and value (/ wordlim 2)) 0))
+        (when (not (= (bitwise-and value (/ wordlim 2)) (bitwise-and hera-val (/ wordlim 2)))) (eprintf "Hmmm, questionable sign flag for ~a/~a" value hera-val)))
+      (when (bitwise-and also-set-flags flag-z-mask)
+        (set-flag! flag-z-ind
+                   (= value 0)))
+      (when (bitwise-and also-set-flags flag-v-mask)
+        (set-flag! flag-v-ind
+                   (not (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2)))))))
+      (when (bitwise-and also-set-flags flag-c-mask)
+        (set-flag! flag-c-ind
+                   (> (bitwise-and value wordlim) 0))))
     (inc-PC!)
   ))
 
+(define hera-op%-arith-to-str
+  (λ (pattern instr op)
+    (format "~s(R~x, R~x,R~x)" (send op _n) (get-n2 instr) (get-n1 instr) (get-n0 instr))))
+(define hera-op%-any-to-str-tmp
+  (λ (pattern instr op)
+    (format "ASM(0x~x) // missing str method" instr)))
+                      
 
 (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
        [action (λ (pattern instr)
@@ -214,22 +234,26 @@
                         [v_extended  (if (> v_8bit #x007f) (bitwise-ior v_8bit #xff00) v_8bit)])
                    (when debug-HERA-hw
                      (printf "SETLO #x~x setting R~a to #x~x\n" instr (get-n2 instr) v_extended))
-                   (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))])
-
+                   (set-reg-inc-PC! (get-n2 instr) v_extended #x00)))]
+       [to-string hera-op%-any-to-str-tmp])
+(define add-tmp-var
 (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
      [action (λ (pattern instr)
                (when debug-HERA-hw
                  (printf "ADD   #x~x R~a = ~a + ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
                (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
                                                   (get-reg (get-n0 instr))
-                                                  (get-c^!cb))))])
+                                                  (get-c^!cb))))]
+     [to-string hera-op%-arith-to-str])
+  )
 (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
      [action (λ (pattern instr)
                (when debug-HERA-hw
                  (printf "SUB   #x~x R~a = ~a - ~a\n" instr (get-n2 instr) (get-reg (get-n1 instr)) (get-reg (get-n0 instr))))
                (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
                                                   (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
-                                                  (get-cvcb))))])
+                                                  (get-cvcb))))]
+     [to-string hera-op%-arith-to-str])
 
 (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
      [action (λ (pattern instr)
@@ -237,13 +261,15 @@
                  (printf "INC   #x~x R~a += ~a\n" instr (get-n2 instr) (get-n0 instr)))
                (set-reg-inc-PC! (get-n2 instr) (+ (get-n0 instr) 1
                                                   (get-reg (get-n2 instr))
-                                                  0)))])
+                                                  0)))]
+     [to-string hera-op%-any-to-str-tmp])
 
 (new hera-op% [pattern "0100 dddd oooo bbbb"] [name "LOAD"]   ; TODO: LOAD with o4=true
      [action (λ (pattern instr)
                (when debug-HERA-hw
                  (printf "LOAD  #x~x R~a = MEM[~a]\n" instr (get-n2 instr) (get-reg (get-n0 instr))))
-               (set-reg-inc-PC! (get-n2 instr) (vector-ref memory-data (get-reg (get-n0 instr))) #x03))])  ; set only S and Z flags
+               (set-reg-inc-PC! (get-n2 instr) (vector-ref memory-data (get-reg (get-n0 instr))) (bitwise-ior flag-s-mask flag-z-mask)))]
+     [to-string hera-op%-arith-to-str])
 
 (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
      [action (λ (pattern instr)
@@ -252,7 +278,13 @@
                       [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
                  (when debug-HERA-hw
                    (printf "BRR #x~x updating PC from  #x~x to #x~x\n" instr PC new_PC))
-                 (set! PC new_PC)))])
+                 (set! PC new_PC)))]
+     
+     [to-string (λ (pattern instr op)
+                  (let ([oooooooo (bitwise-and instr #xff)])
+                    (if (bitwise-and oooooooo #x80)
+                        (format "BRR(-~a)" (- #x80 oooooooo))
+                        (format "BRR(+~a)"  oooooooo))))])
 
 
 (define (step!)

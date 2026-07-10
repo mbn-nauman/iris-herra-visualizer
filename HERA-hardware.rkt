@@ -127,12 +127,6 @@
     
     (define and-mask  (mask-for "1"  "0"  "" pattern)) ; see examples in tests above
     (define  or-mask  (mask-for "0"  "1"  "" pattern))
-
-    (define op-a-mask (mask-for "aA" "0" "1" pattern))
-    (define op-b-mask (mask-for "bB" "0" "1" pattern))
-    (define op-d-mask (mask-for "Dd" "0" "1" pattern))
-    (define op-v-mask (mask-for "Vv" "0" "1" pattern))
-    
     (define/public (match? me)   (and (= (bitwise-and me and-mask) and-mask)
                                       (= (bitwise-ior me  or-mask)  or-mask)))
     (define/public (doit!  instr) (if (match? instr) (_a _p instr)      (error (format "Instr #x~x doesn't match op ~s\n" instr _p))))
@@ -152,7 +146,7 @@
   (->                               hera-val? void?)
   (let* ([n3      (get-n3 instr)]
          [ops     (vector-ref hera-op%-dispatch-table n3)]
-         [matches ops])
+         [matches (filter (λ (op) (send op match? instr)) ops)])
     (if (not (empty? matches))
         (let ([op (first matches)])
           (when (> (length matches) 1)
@@ -170,7 +164,7 @@
   (->                          hera-val? string?)
   (let* ([n3      (get-n3 instr)]
          [ops     (vector-ref hera-op%-dispatch-table n3)]
-         [matches ops])
+         [matches (filter (λ (op) (send op match? instr)) ops)])
     (match (length matches)
       [1    (send (first matches) str instr)]
       [0    (format "ASM(~a)  // no matching instruction found" (hex-str instr))]

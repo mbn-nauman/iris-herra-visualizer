@@ -105,39 +105,20 @@
                 (send code-command-choice get-selection))
           (refresh-code-display! 0))])) ; then rebuilds the rows according to the new format (hex/asb)
 
-; now going to make the actual table with the two columns
+; now going to make the panel with the code lines
 
-(define code-table
-  (new horizontal-panel%
+(define code-lines-panel
+  (new vertical-panel%
        [parent code-panel]
-       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
-       [spacing 20] ; this is amount of spacing between the columns...20pixels
-       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
+       [alignment '(left top)]
+       [stretchable-width #f]
+       [stretchable-height #f]))
 
-(define code-address-column ; address column
-  (new vertical-panel%
-       [parent code-table]
-       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
-       [stretchable-width #f] ; this forced racket to not auto strech the columns and keep them the size they should be
-       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
-
-(define code-command-column ; command column
-  (new vertical-panel%
-       [parent code-table]
-       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
-       [stretchable-width #f] ; this forced racket to not auto strech the columns and keep them the size they should be
-       [stretchable-height #f])) ; this forced racket to not auto strech the columns and keep them the size they should be
-
-; adding title or headers for these columns now
+; adding header for that panel now
 
 (new message%
-     [parent code-address-column]
-     [label "Address"]
-     [auto-resize #t])
-
-(new message%
-     [parent code-command-column]
-     [label "Command"]
+     [parent code-lines-panel]
+     [label "Address Command"]
      [auto-resize #t])
 
 ; now going to make function to display addresses

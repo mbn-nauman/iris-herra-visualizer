@@ -7,7 +7,7 @@
 (require racket/math) ;; for bitwise-and, etc.
 
 (define debug-HERA-hw #f)
-(define HERA-hw-step-trace #f)
+(define HERA-hw-step-trace #t)
 
 (require racket/random) ; temporary, while testing
 
@@ -153,7 +153,7 @@
             (eprintf " ==> HERA-hardware.rkt inconsistency: more than one match in group ~a for #x~x <==\n" n3 instr))
           (send op doit!  instr))
         (let ()
-          (printf "Illegal instruction (no op implemented): ~a\n" instr)
+          (printf "Illegal instruction (no op implemented): #x~x\n" instr)
           (inc-PC!)))))
 (define/contract (hex-str num         [hits 4]  [prefix "0x"])
   (->*                    (hera-val?) (integer? string?)       string?)
@@ -415,45 +415,45 @@
 
   ;;; 0x[01]*** Branches
   ;;; table of names copied from the HERA2_4_0.pdf doc. then edited
-  (let* ([hera-op%-branch-table
+  (let* ([hera-op%-branch-table  ; hobt is pronounced like "hobbit"
           (list->vector
-           '(["BR"   (λ (c v z s)      #t)]         ; 0000 = unconditional branch
-             ["ILLEGAL"  (λ (c v z s)  (not #t))]   ; 0001 = not defined; for symmetry, never
-             ["BL"   (λ (c v z s)      (xor s v))]  ; 0010      (s ⊕ v)
-	     ["BGE"  (λ (c v z s) (not (xor s v)))] ; 0011      (s ⊕ v) ′
-	     ["BLE"  (λ (c v z s)      (or (xor s v) z))]   ;  ((s ⊕ v) ∨ z)
-	     ["BG"   (λ (c v z s) (not (or (xor s v) z)))]  ;  ((s ⊕ v) ∨ z) ′
-	     ["BULE" (λ (c v z s)      (or (not c) z))]     ;   (c′ ∨ z)
-	     ["BUG"  (λ (c v z s) (not (or (not c) z)))]    ;   (c′ ∨ z) ′
-	     ["BZ"   (λ (c v z s)       z)]    ;  z
-	     ["BNZ"  (λ (c v z s) (not  z))]   ;  z ′
-	     ["BC"   (λ (c v z s)       c)]    ;  c
-	     ["BNC"  (λ (c v z s) (not  c))]   ;  c ′
-	     ["BS"   (λ (c v z s)       s)]    ;  s
-	     ["BNS"  (λ (c v z s) (not  s))]   ;  s ′
-	     ["BV"   (λ (c v z s)       v)]    ;  v
-	     ["BNV"  (λ (c v z s) (not  v))]   ;  v ′
-	     ))]
-         [hera-op%-branch-to-str
+           (list [list "BR"   (λ (c v z s)      #t)]         ; 0000 = unconditional branch
+                 [list "ILLEGAL"  (λ (c v z s)  (not #t))]   ; 0001 = not defined; for symmetry, never
+                 [list "BL"   (λ (c v z s)      (xor s v))]  ; 0010      (s ⊕ v)
+                 [list "BGE"  (λ (c v z s) (not (xor s v)))] ; 0011      (s ⊕ v) ′
+                 [list "BLE"  (λ (c v z s)      (or (xor s v) z))]   ;  ((s ⊕ v) ∨ z)
+                 [list "BG"   (λ (c v z s) (not (or (xor s v) z)))]  ;  ((s ⊕ v) ∨ z) ′
+                 [list "BULE" (λ (c v z s)      (or (not c) z))]     ;   (c′ ∨ z)
+                 [list "BUG"  (λ (c v z s) (not (or (not c) z)))]    ;   (c′ ∨ z) ′
+                 [list "BZ"   (λ (c v z s)       z)]    ;  z
+                 [list "BNZ"  (λ (c v z s) (not  z))]   ;  z ′
+                 [list "BC"   (λ (c v z s)       c)]    ;  c
+                 [list "BNC"  (λ (c v z s) (not  c))]   ;  c ′
+                 [list "BS"   (λ (c v z s)       s)]    ;  s
+                 [list "BNS"  (λ (c v z s) (not  s))]   ;  s ′
+                 [list "BV"   (λ (c v z s)       v)]    ;  v
+                 [list "BNV"  (λ (c v z s) (not  v))]   ;  v ′
+                 ))]
+         [hera-op%-branch-to-string
           (λ (pattern instr op)
-            (let* ([cond (get-n2 instr)]
-                   [name (string-append (first (vector-ref hera-op%-branch-table cond)) "R")]
+            (let* ([name (string-append (first (vector-ref hera-op%-branch-table (get-n2 instr))) "R")]
                    [oooooooo (bitwise-and instr #xff)])
               (if (> (bitwise-and oooooooo #x80) 0)
                   (format "~a(-~a) \t// ~a" name (- #xff oooooooo) (hex-str instr))
-                  (format "~a(+~a) \t// ~a" name         oooooooo  (hex-str instr)))))])
+                  (format "~a(+~a) \t// ~a" name         oooooooo  (hex-str instr)))))]
+         [hera-op%-branch-action
+          (λ (pattern instr)
+            (if (apply (second (vector-ref hera-op%-branch-table (get-n2 instr)))
+                       (vector->list (vector-take flags 4)))
+                (let* ([o_8bit      (get-b0 instr)]
+                       [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
+                       [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
+                  (set! PC new_PC))
+                (set! PC (modulo (+ PC 1) memsize))))])
     
-    (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
-         [action (λ (pattern instr)
-                   (let* ([o_8bit      (get-b0 instr)]
-                          [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                          [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                     (set! PC new_PC)))]
-         [to-string (λ (pattern instr op)
-                      (let ([oooooooo (bitwise-and instr #xff)])
-                        (if (> (bitwise-and oooooooo #x80) 0)
-                            (format "BRR(-~a) \t// ~a" (- #xff oooooooo) (hex-str instr))
-                            (format "BRR(+~a) \t// ~a"         oooooooo  (hex-str instr)))))])
+    (new hera-op% [pattern "0000 cccc oooooooo"] [name "B*R"]
+         [action    hera-op%-branch-action]
+         [to-string hera-op%-branch-to-string])
     )
   ;;; 0x[01]*** ends here
 
@@ -487,7 +487,7 @@
         (vector-set! memory-data 6 19)
         (vector-set! memory-data 7 23)
         (vector-set! memory-data 8 27))
-      (error "Sorry, load-code! does not yet load from files, please omit name or use \"\" for sample test program"))
+      (error "Sorry, load-data! does not yet load from files, please omit name or use \"\" for sample test program"))
   )
       ;(set! memory-data 
       ;(list->vector (random-sample (list 0 1 2 3 4 7 12 17 65535 65534 (random -4 48) (random -4 48) (random -4 48) (random -4 48))
@@ -504,8 +504,8 @@
         (vector-set! memory-code 4 #xB412)
         (vector-set! memory-code 5 #xB521)
         (vector-set! memory-code 6 #xB114)
-        (vector-set! memory-code 7 #x0002)
-        (vector-set! memory-code 8 #x0081)  ; we should skip this; branch somewhere crazy if we don't
+        (vector-set! memory-code 7 #x0302)  ; BGER, if result in R1 is already >=0, skip +=42 step
+        (vector-set! memory-code 8 #xA113)  ; initially we skip this, then, later not
         (vector-set! memory-code 9 #x3780)
         (vector-set! memory-code 10 #x4807)
         (vector-set! memory-code 11 #x00FB)  ; branch back to  6

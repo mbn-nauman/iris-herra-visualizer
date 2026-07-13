@@ -1,54 +1,274 @@
-;frame
-;└── main-panel
-;    ├── toolbar
-;    └── content
-;        ├── code-panel
-;        ├── register-panel
-;        └── memory-panel
+; GUI STRUCTURE
 
+frame
+└── main-panel
+    ├── toolbar
+    │   ├── Run button
+    │   ├── Step button
+    │   └── Reset button
+    │
+    └── content
+        ├── code-panel
+        ├── register-panel
+        └── memory-panel
+
+
+; --------------------------------
+; CODE / FILE PANEL
+; --------------------------------
+
+code-panel
+├── code-options-panel
+│   ├── code-address-choice
+│   │   ├── Dec
+│   │   └── Hex
+│   │
+│   └── code-command-choice
+│       ├── Hex
+│       └── Assembly
+│
+└── code-lines-panel
+    ├── Address Command
+    ├── code-line-field 0
+    │   └── "0x0000 0xE111"
+    ├── code-line-field 1
+    │   └── "0x0001 0xE219"
+    ├── code-line-field 2
+    │   └── "0x0002 0xA312"
+    └── ...
+
+
+; Important code panel idea:
+; Each code row is ONE editable text field.
+;
+; Format:
+; address command
+;
+; Example:
+; 0x0000 0xE111
+;
+; The address ends at the first space.
+; Everything after the first space is the command.
+
+
+; --------------------------------
+; CODE PANEL DATA
+; --------------------------------
+
+code-address-values
+├── row 0 address
+├── row 1 address
+├── row 2 address
+└── ...
+
+code-command-values
+├── row 0 command
+├── row 1 command
+├── row 2 command
+└── ...
+
+code-line-fields
+├── text-field for row 0
+├── text-field for row 1
+├── text-field for row 2
+└── ...
+
+
+; --------------------------------
+; CODE PANEL FUNCTIONS
+; --------------------------------
+
+code-address-display
+└── takes address number
+    ├── if address mode is Dec → show decimal
+    └── if address mode is Hex → show hex
+
+code-command-display
+└── takes command number
+    ├── if command mode is Hex → show hex
+    └── if command mode is Assembly → show assembly
+
+code-line-display
+└── combines address display + space + command display
+    └── example: "0x0000 0xE111"
+
+split-code-line
+└── takes one typed line
+    ├── before first space → address text
+    └── after first space → command text
+
+make-code-line-fields
+└── creates one editable text-field% per code row
+
+set-code-row!
+└── updates one code row
+    ├── updates code-address-values
+    ├── updates code-command-values
+    └── updates visible text field
+
+save-code-row!
+└── saves one edited code row
+    ├── reads text field
+    ├── splits address and command
+    ├── parses address
+    ├── parses command
+    └── stores both in vectors
+
+save-code-fields!
+└── saves every code row
+
+refresh-code-display!
+└── redraws every code row using current dropdown modes
+
+
+; --------------------------------
+; REGISTER PANEL
+; --------------------------------
 
 register-panel
+├── register-options-panel
+│   ├── reg-dec-checkbox
+│   ├── reg-hex-checkbox
+│   └── reg-ascii-checkbox
+│
 └── register-table
     ├── reg-name-column
     │   ├── Reg
     │   ├── R0
     │   ├── R1
-    │   └── ...
+    │   ├── ...
+    │   ├── R14/FP
+    │   └── R15/SP
+    │
     ├── reg-dec-column
     │   ├── Dec
     │   ├── 0
     │   ├── 0
     │   └── ...
+    │
     ├── reg-hex-column
     │   ├── Hex
     │   ├── 0x0000
     │   ├── 0x0000
     │   └── ...
+    │
     └── reg-ascii-column
         ├── ASCII
         ├── -
         ├── -
         └── ...
 
+
+; Register panel uses change-children.
+; When a checkbox is unchecked, the column is removed from register-table's children.
+; This prevents empty spacing.
+
+
+; --------------------------------
+; MEMORY PANEL
+; --------------------------------
+
 memory-panel
+├── memory-options-panel
+│   ├── mem-dec-checkbox
+│   ├── mem-hex-checkbox
+│   └── mem-ascii-checkbox
+│
 └── memory-table
     ├── mem-address-column
     │   ├── Address
     │   ├── 0x0000
     │   ├── 0x0001
     │   └── ...
+    │
     ├── mem-dec-column
     │   ├── Dec
     │   ├── 0
     │   ├── 0
     │   └── ...
+    │
     ├── mem-hex-column
     │   ├── Hex
     │   ├── 0x0000
     │   ├── 0x0000
     │   └── ...
+    │
     └── mem-ascii-column
         ├── ASCII
         ├── -
         ├── -
         └── ...
+
+
+; Memory panel also uses change-children.
+; Dec, Hex, and ASCII columns can be shown/hidden.
+
+
+; --------------------------------
+; BACKEND INTEGRATION PLAN
+; --------------------------------
+
+Backend/API functions to connect later:
+
+load-code!
+└── loads code into backend memory-code
+
+get-code
+└── gets machine code at a code address
+
+get-code-asm
+└── gets assembly version of code at an address
+
+get-PC
+└── gets current program counter
+
+step!
+└── executes one instruction
+
+get-register
+└── gets value of one register
+
+get-data / memory getter
+└── gets value from memory/data area
+
+
+; Planned GUI integration order:
+
+Run button
+└── call load-code!
+    └── refresh code panel from get-code
+
+Step button
+└── call step!
+    ├── refresh PC display
+    ├── refresh registers
+    ├── refresh memory
+    └── refresh code display if needed
+
+Register refresh
+└── for each register R0-R15
+    └── call get-register
+        └── call set-register-value!
+
+Memory refresh
+└── for each visible memory address
+    └── call memory getter
+        └── call set-memory-value!
+
+Code refresh
+└── for each visible code address
+    └── call get-code
+        └── call set-code-row!
+
+
+; --------------------------------
+; IMPORTANT WARNING
+; --------------------------------
+
+assembly->hex is currently fake unless backend implements it.
+
+So if command mode is Assembly and we switch back to Hex,
+commands may turn into 0 if assembly->hex returns 0.
+
+That is not a GUI layout bug.
+It means assembly parsing is not connected yet.

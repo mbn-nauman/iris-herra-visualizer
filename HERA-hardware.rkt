@@ -6,8 +6,8 @@
 (require "check.rkt")
 (require racket/math) ;; for bitwise-and, etc.
 
-(define debug-HERA-hw #f)
-(define HERA-hw-step-trace #f)
+(define debug-HERA-hw #t)
+(define HERA-hw-step-trace #t)
 
 (require racket/random) ; temporary, while testing
 
@@ -47,7 +47,7 @@
      sep
      (if (vector-ref flags flag-c-ind) "C" "c")
      sep
-     "v" ; ToDo: (if (vector-ref flags flag-v-ind) "V" "v")
+     (if (vector-ref flags flag-v-ind) "V" "v")
      sep
      (if (vector-ref flags flag-z-ind) "Z" "z")
      sep
@@ -196,8 +196,8 @@
   (->                       integer?   boolean?  void?)
   (vector-set! flags flag-ind value))
 
-(define (inc-PC!)
-  (set! PC (modulo (+ PC 1) wordlim)))
+(define (inc-PC! [amount 1])
+  (set! PC (modulo (+ PC amount) wordlim)))
 
 ;
 ; for now, also-set-flags is 0 for "no flags", #xff for all flags;
@@ -425,7 +425,7 @@
                  [list "BG"   (λ (c v z s) (not (or (xor s v) z)))]  ;  ((s ⊕ v) ∨ z) ′
                  [list "BULE" (λ (c v z s)      (or (not c) z))]     ;   (c′ ∨ z)
                  [list "BUG"  (λ (c v z s) (not (or (not c) z)))]    ;   (c′ ∨ z) ′
-                 [list "BZ"   (λ (c v z s)       z)]    ;  z
+                 [list "BZ"   (λ (c v z s)       z)]    ;  z   branch condition 1000
                  [list "BNZ"  (λ (c v z s) (not  z))]   ;  z ′
                  [list "BC"   (λ (c v z s)       c)]    ;  c
                  [list "BNC"  (λ (c v z s) (not  c))]   ;  c ′
@@ -439,16 +439,22 @@
             (let* ([name (string-append (first (vector-ref hera-op%-branch-table (get-n2 instr))) "R")]
                    [oooooooo (bitwise-and instr #xff)])
               (if (> (bitwise-and oooooooo #x80) 0)
-                  (format "~a(-~a) \t// ~a" name (- #xff oooooooo) (hex-str instr))
-                  (format "~a(+~a) \t// ~a" name         oooooooo  (hex-str instr)))))]
+                  (format "~a(-~a) \t" name (- #xff oooooooo))
+                  (format "~a(+~a) \t" name         oooooooo ))))]
          [hera-op%-branch-action
           (λ (pattern instr)
+            (when debug-HERA-hw
+              (printf "Considering branch ~a, flags are ~a\n"
+                      (first (vector-ref hera-op%-branch-table (get-n2 instr)))
+                      (flags->string)))
             (if (apply (second (vector-ref hera-op%-branch-table (get-n2 instr)))
-                       (vector->list (vector-take flags 4)))
+                       (reverse (vector->list (vector-take flags 4)))) ; want s last, like printout
                 (let* ([o_8bit      (get-b0 instr)]
                        [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
                        [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                  (set! PC new_PC))
+                  (set! PC new_PC)
+                  (when debug-HERA-hw
+                    (printf "   ... took the branch\n")))
                 (set! PC (modulo (+ PC 1) memsize))))])
     
     (new hera-op% [pattern "0000 cccc oooooooo"] [name "B*R"]
@@ -463,7 +469,7 @@
 (define (step!)
   (let ([instr (vector-ref memory-code PC)])
     (when HERA-hw-step-trace
-      (printf "~a\t~a" (hex-str PC) (hera-op%-str instr)))
+      (printf "~a\t~a\t" (hex-str PC) (hera-op%-str instr)))
     (hera-op%-dispatch instr)
     (when HERA-hw-step-trace
       (newline))   ))
@@ -504,7 +510,7 @@
         (vector-set! memory-code 4 #xB412)
         (vector-set! memory-code 5 #xB521)
         (vector-set! memory-code 6 #xB114)
-        (vector-set! memory-code 7 #x0002) ; BGER broken for now... (vector-set! memory-code 7 #x0302)  ; BGER, if result in R1 is already >=0, skip +=42 step
+        (vector-set! memory-code 7 #x0302)  ; BGER, if result in R1 is already >=0, skip +=42 step
         (vector-set! memory-code 8 #xA113)  ; initially we skip this, then, later not
         (vector-set! memory-code 9 #x3780)
         (vector-set! memory-code 10 #x4807)

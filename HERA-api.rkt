@@ -50,7 +50,7 @@
   (load-data!)  ;  get the data memory set up so the LOAD's work
   (set-step-trace! #t)
   (map (λ (step) (step!) (printf "   Reg:\t~a\n" (vector-take registers 11)))
-       (range 25))
+       (range 42))
   (set-step-trace! #f)
   (void)
   )

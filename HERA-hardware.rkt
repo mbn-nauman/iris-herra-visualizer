@@ -6,8 +6,8 @@
 (require "check.rkt")
 (require racket/math) ;; for bitwise-and, etc.
 
-(define debug-HERA-hw #t)
-(define HERA-hw-step-trace #t)
+(define debug-HERA-hw #f)
+(define HERA-hw-step-trace #f)
 
 (require racket/random) ; temporary, while testing
 

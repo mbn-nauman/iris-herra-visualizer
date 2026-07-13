@@ -7,7 +7,7 @@
 (require racket/math) ;; for bitwise-and, etc.
 
 (define debug-HERA-hw #f)
-(define HERA-hw-step-trace #t)
+(define HERA-hw-step-trace #f)
 
 (require racket/random) ; temporary, while testing
 
@@ -504,7 +504,7 @@
         (vector-set! memory-code 4 #xB412)
         (vector-set! memory-code 5 #xB521)
         (vector-set! memory-code 6 #xB114)
-        (vector-set! memory-code 7 #x0302)  ; BGER, if result in R1 is already >=0, skip +=42 step
+        (vector-set! memory-code 7 #x0002) ; BGER broken for now... (vector-set! memory-code 7 #x0302)  ; BGER, if result in R1 is already >=0, skip +=42 step
         (vector-set! memory-code 8 #xA113)  ; initially we skip this, then, later not
         (vector-set! memory-code 9 #x3780)
         (vector-set! memory-code 10 #x4807)

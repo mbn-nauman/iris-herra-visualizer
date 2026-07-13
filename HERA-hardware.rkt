@@ -414,11 +414,26 @@
   ;;; 0x2*** ends here
 
   ;;; 0x[01]*** Branches
+  ;;; table of names copied from the HERA2_4_0.pdf doc. then edited
   (let* ([hera-op%-branch-table
           (list->vector
-           '(["BR" #x00 #f]      ; 0 = uncond.
-             ["ILLEGAL" #x00 #f] ; 1 = not defined
-             ))]
+           '(["BR"   (λ (c v z s)      #t)]         ; 0000 = unconditional branch
+             ["ILLEGAL"  (λ (c v z s)  (not #t))]   ; 0001 = not defined; for symmetry, never
+             ["BL"   (λ (c v z s)      (xor s v))]  ; 0010      (s ⊕ v)
+	     ["BGE"  (λ (c v z s) (not (xor s v)))] ; 0011      (s ⊕ v) ′
+	     ["BLE"  (λ (c v z s)      (or (xor s v) z))]   ;  ((s ⊕ v) ∨ z)
+	     ["BG"   (λ (c v z s) (not (or (xor s v) z)))]  ;  ((s ⊕ v) ∨ z) ′
+	     ["BULE" (λ (c v z s)      (or (not c) z))]     ;   (c′ ∨ z)
+	     ["BUG"  (λ (c v z s) (not (or (not c) z)))]    ;   (c′ ∨ z) ′
+	     ["BZ"   (λ (c v z s)       z)]    ;  z
+	     ["BNZ"  (λ (c v z s) (not  z))]   ;  z ′
+	     ["BC"   (λ (c v z s)       c)]    ;  c
+	     ["BNC"  (λ (c v z s) (not  c))]   ;  c ′
+	     ["BS"   (λ (c v z s)       s)]    ;  s
+	     ["BNS"  (λ (c v z s) (not  s))]   ;  s ′
+	     ["BV"   (λ (c v z s)       v)]    ;  v
+	     ["BNV"  (λ (c v z s) (not  v))]   ;  v ′
+	     ))]
          [hera-op%-branch-to-str
           (λ (pattern instr op)
             (let* ([cond (get-n2 instr)]

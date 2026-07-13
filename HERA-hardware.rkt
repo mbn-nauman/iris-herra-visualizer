@@ -18,11 +18,11 @@
 (define registers   (make-vector 16       0))
 (define memory-data (make-vector memsize  0))
 (define memory-code (make-vector memsize  0))
-(define/contract (getf-s)    (-> boolean?) (vector-ref  flags 0))
-(define/contract (getf-z)    (-> boolean?) (vector-ref  flags 1))
-(define/contract (getf-v)    (-> boolean?) (vector-ref  flags 2))
-(define/contract (get-c^!cb) (-> integer?) (if (and  (vector-ref  flags 3) (not (vector-ref  flags 4))) 1 0))  ; effective carry for ADD
-(define/contract (get-cvcb)  (-> integer?) (if (or   (vector-ref  flags 3)      (vector-ref  flags 4))  1 0))  ; effective carry for SUB
+(define/contract (getf-s)         (-> boolean?) (vector-ref  flags flag-s-ind))
+(define/contract (getf-z)         (-> boolean?) (vector-ref  flags flag-z-ind))
+(define/contract (getf-v)         (-> boolean?) (vector-ref  flags flag-v-ind))
+(define/contract (get-eff-carry)  (-> integer?) (if (and       (vector-ref  flags flag-c-ind)  (not (vector-ref  flags flag-cb-ind))) 1 0))  ; effective carry  for ADD
+(define/contract (get-eff-borrow) (-> integer?) (if (and  (not (vector-ref  flags flag-c-ind)) (not (vector-ref  flags flag-cb-ind))) 1 0))  ; effective borrow for SUB
 
 ; (define (setf-s v)  (vector-set! flags 0)) 
 (define flag-s-ind  0) (define flag-s-mask #x01)
@@ -181,7 +181,13 @@
   (set! memory-code (make-vector memsize  0)))
 
 
-(define/contract (get-reg  r)
+(define/contract (get-reg-s r)  ; get signed value, i.e. negative if >= #x8000
+  (->                       hera-reg-num? integer?)
+  (let ([16bit (vector-ref registers r)])
+    (if (= (bitwise-and 16bit #x8000) #x8000) ; e.g. xffff is -1, as they are equal mod x10000
+        (- 16bit #x10000)                     ; xffff - x10000 --> -1 (subtracting #x10000 doesn't change the mod-value)
+        16bit)))
+(define/contract (get-reg r)
   (->                      hera-reg-num? hera-val?)
   (vector-ref registers r))
 (define/contract (set-reg! r             v)
@@ -219,7 +225,8 @@
                    (= value 0)))
       (when (bitwise-and also-set-flags flag-v-mask)
         (set-flag! flag-v-ind
-                   (not (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2)))))))
+                   (not (= (bitwise-and value wordlim) (* 2 (bitwise-and value (/ wordlim 2)))))
+                   ))
       (when (bitwise-and also-set-flags flag-c-mask)
         (set-flag! flag-c-ind
                    (> (bitwise-and value wordlim) 0))))
@@ -283,24 +290,32 @@
   ;;; 0xC*** MUL
   (new hera-op% [pattern "1100 dddd aaaa bbbb"] [name "MUL_UNTESTED"]
        [action (λ (pattern instr)
-                 (set-reg-inc-PC! (get-n2 instr) (* (get-reg (get-n1 instr))
-                                                    (get-reg (get-n0 instr)))))]
+                 (set-reg-inc-PC! (get-n2 instr) (* (get-reg-s (get-n1 instr))
+                                                    (get-reg-s (get-n0 instr)))))]
        [to-string hera-op%-arith-to-str])
   
   ;;; 0xB*** SUB
   (new hera-op% [pattern "1011 dddd aaaa bbbb"] [name "SUB"]
        [action (λ (pattern instr)
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                    (- (- wordlim 1) (get-reg (get-n0 instr))) ; n0 bit-flipped
-                                                    (get-cvcb))))]
+                 (let ([A (get-reg-s (get-n1 instr))]
+                       [B (get-reg-s (get-n0 instr))]) ; must capture before execution to do check right
+                   (when debug-HERA-hw (printf "SUB got signed values ~a and ~a\n" (get-reg-s (get-n1 instr)) (get-reg-s (get-n0 instr))))
+                   (set-reg-inc-PC! (get-n2 instr) (- A B (get-eff-borrow)))
+                   ;(set-flag! flag-v-ind (not (or ; no overflow if s(Ra) == s(Rb) or s(Ra) == s(result)
+                   ;                            (= (bitwise-and #x8000 A) (bitwise-and #x8000 B)) ; note bitwise-and with -1 gives #x8000
+                   ;                            (= (bitwise-and #x8000 A) (bitwise-and #x8000 (get-reg-s (get-n2 instr)))))))))]
+                   (when (not (eq? (not (get-flag flag-v-ind)) 
+                                   (or (= (bitwise-and #x8000 A) (bitwise-and #x8000 B))
+                                       (= (bitwise-and #x8000 A) (bitwise-and #x8000 (get-reg-s (get-n2 instr)))))))
+                     (eprintf " ==> HERA-hardware.rkt: overflow flag may be wrong, calculations are inconsistent\n"))))]
        [to-string hera-op%-arith-to-str])
   
   ;;; 0xA*** ADD
   (new hera-op% [pattern "1010 dddd aaaa bbbb"] [name "ADD"]
        [action (λ (pattern instr)
-                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg (get-n1 instr))
-                                                    (get-reg (get-n0 instr))
-                                                    (get-c^!cb))))]
+                 (set-reg-inc-PC! (get-n2 instr) (+ (get-reg-s (get-n1 instr))
+                                                    (get-reg-s (get-n0 instr))
+                                                    (get-eff-carry))))]
        [to-string hera-op%-arith-to-str])
 
   ;;; 0x9*** OR
@@ -387,18 +402,18 @@
                    (let ([eeeeee (bitwise-and instr #x3f)]
                          [d-reg  (get-n2 instr)])
                      (set-reg-inc-PC! d-reg (+ (- (- wordlim 1) (+ eeeeee 1)) ; eeeeee+1 bit-flipped, i.e., just add 1 below to have -(eeeeee+1)
-                                               (get-reg d-reg)
+                                               (get-reg-s d-reg)
                                                1))))]
          [to-string (λ (pattern instr op)
                       (let ([eeeeee (bitwise-and instr #x3f)]
                             [reg      (get-n2 instr)])
-                        (format "DEC(R~x, ~x)" reg (+ 1 eeeeee))))])
+                        (format "DEC(R~x, ~x) // Untested, esp. overflow flag" reg (+ 1 eeeeee))))])
     (new hera-op% [pattern "0011 dddd 10ee eeee"] [name "INC"]
          [action (λ (pattern instr)
                    (let ([eeeeee (bitwise-and instr #x3f)]
                          [d-reg  (get-n2 instr)])
                      (set-reg-inc-PC! d-reg (+ eeeeee 1
-                                               (get-reg d-reg)
+                                               (get-reg-s d-reg)
                                                0))))]
          [to-string (λ (pattern instr op)
                       (let ([eeeeee (bitwise-and instr #x3f)]
@@ -439,8 +454,8 @@
             (let* ([name (string-append (first (vector-ref hera-op%-branch-table (get-n2 instr))) "R")]
                    [oooooooo (bitwise-and instr #xff)])
               (if (> (bitwise-and oooooooo #x80) 0)
-                  (format "~a(-~a) \t" name (- #xff oooooooo))
-                  (format "~a(+~a) \t" name         oooooooo ))))]
+                  (format "~a(-~a)" name (- #xff oooooooo))
+                  (format "~a(+~a)" name         oooooooo ))))]
          [hera-op%-branch-action
           (λ (pattern instr)
             (when debug-HERA-hw
@@ -450,12 +465,11 @@
             (if (apply (second (vector-ref hera-op%-branch-table (get-n2 instr)))
                        (reverse (vector->list (vector-take flags 4)))) ; want s last, like printout
                 (let* ([o_8bit      (get-b0 instr)]
-                       [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]
-                       [new_PC      (modulo (+ PC o_extended) memsize)])  ; note we assume a PC++ after the BRR
-                  (set! PC new_PC)
+                       [o_extended  (if (> o_8bit #x007f) (bitwise-ior o_8bit #xff00) o_8bit)]) 
+                  (inc-PC! o_extended)  ; note we assume a PC++ after the branch
                   (when debug-HERA-hw
-                    (printf "   ... took the branch\n")))
-                (set! PC (modulo (+ PC 1) memsize))))])
+                    (printf "\t   ... took the branch\n")))
+                (inc-PC! 1)))])
     
     (new hera-op% [pattern "0000 cccc oooooooo"] [name "B*R"]
          [action    hera-op%-branch-action]
@@ -533,6 +547,7 @@
 
 (check-equal (hera-op%-str (vector-ref memory-code 0))  "SETLO(R1, 17)")
 (check-equal (hera-op%-str (vector-ref memory-code 2))  "ADD(R3, R1,R2)")
+(check-equal (hera-op%-str (vector-ref memory-code 7))  "BGER(+2)")
 (check-equal (hera-op%-str (vector-ref memory-code 10)) "LOAD(R8, 0,R7)")
 
 ; (set-step-trace! #t)  ; shows stuff getting printed ... set it back again, or maybe make "trace" a parameter
@@ -561,7 +576,7 @@
 (check-equal registers '#(0 34 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")  ; BORROWED (so nn C), but got a NEGATIVE number (so S is on)
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3 (with borrow-in; no borrow-out = C out)
+(step!)                 ; SUB R1 R1 R4 (with borrow-in; no borrow-out = C out)
 (check-equal registers '#(0 25 25 42 08 65527 0 0 0 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
 (check-equal PC 7)
@@ -581,7 +596,7 @@
 (check-equal registers '#(0 25 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R4 (25-8, no borrow-in, no borrow-out)
+(step!)                 ; SUB R1 R1 R4 (25-8, WITH borrow-in, no borrow-out)
 (check-equal registers '#(0 16 25 42 08 65527 0 1 5 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z s")
 (check-equal PC 7)      ; BRR +2
@@ -621,13 +636,17 @@
 (check-equal registers '#(0 07 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3 (07 - 8, WITH borrow, and BORROW-OUT)
+(step!)                 ; SUB R1 R1 R4 (07 - 8, WITH borrow, and BORROW-OUT)
 (check-equal registers '#(0 65534 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")
-(check-equal PC 7)      ; BRR +2
+(check-equal PC 7)      ; BRR +2  BUT DON'T TAKE IT
 (step!)
 (check-equal registers '#(0 65534 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z S")
+(check-equal PC 8)      ; ADD R1 R1 R3 (-42 + 40 with not carry-in, produces carry-out no V)
+(step!)
+(check-equal registers '#(0 40 25 42 08 65527 0 3 11 0 0 0 0 0 0 0))
+(check-equal (flags->string) "b  C v z S  ")
 (check-equal PC 9)      ; INC R7
 (step!)
 (check-equal registers '#(0 65534 25 42 08 65527 0 4 11 0 0 0 0 0 0 0))
@@ -641,7 +660,7 @@
 (check-equal registers '#(0 65534 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  c v z s")
 (check-equal PC 6)
-(step!)                 ; SUB R1 R1 R3
+(step!)                 ; SUB R1 R1 R4
 (check-equal registers '#(0 65525 25 42 08 65527 0 4 13 0 0 0 0 0 0 0))
 (check-equal (flags->string) "b  C v z S")
 (check-equal PC 7)      ; BRR +2

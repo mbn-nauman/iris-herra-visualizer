@@ -414,8 +414,20 @@
   ;;; 0x2*** ends here
 
   ;;; 0x[01]*** Branches
-  (let ()  ; surely we'll need some variables?  In any case, this will indent to hightight grouping
-
+  (let* ([hera-op%-branch-table
+          (list->vector
+           '(["BR" #x00 #f]      ; 0 = uncond.
+             ["ILLEGAL" #x00 #f] ; 1 = not defined
+             ))]
+         [hera-op%-branch-to-str
+          (λ (pattern instr op)
+            (let* ([cond (get-n2 instr)]
+                   [name (string-append (first (vector-ref hera-op%-branch-table cond)) "R")]
+                   [oooooooo (bitwise-and instr #xff)])
+              (if (> (bitwise-and oooooooo #x80) 0)
+                  (format "~a(-~a) \t// ~a" name (- #xff oooooooo) (hex-str instr))
+                  (format "~a(+~a) \t// ~a" name         oooooooo  (hex-str instr)))))])
+    
     (new hera-op% [pattern "0000 0000 oooooooo"] [name "BRR"]
          [action (λ (pattern instr)
                    (let* ([o_8bit      (get-b0 instr)]

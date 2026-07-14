@@ -2,7 +2,7 @@
 (require "check.rkt")
 (require "HERA-hardware.rkt")
 
-(provide reset! step! get-PC get-flags get-register get-data get-code get-code-asm hex-str)  ; reset! right outta HERA-hardware
+(provide reset! step! get-PC get-flags get-register get-data get-code get-code-asm hex-display)  ; reset! right outta HERA-hardware
 (provide load-data! load-code!)
 
 (define verbose #f)
@@ -44,7 +44,7 @@
   (printf   " ====  Welcome to the HERA-api demo   ====\n\n")
   (load-code!)
   (printf   " ==== Here's our example HERA program ====\n")
-  (map (λ (addr) (printf "~a\t~a\n" (hex-str addr) (get-code-asm addr)))
+  (map (λ (addr) (printf "~a\t~a\n" (hex-display addr) (get-code-asm addr)))
        (range 13))
   (printf "\n ==== Now, lets run some steps ====\n")
   (load-data!)  ;  get the data memory set up so the LOAD's work

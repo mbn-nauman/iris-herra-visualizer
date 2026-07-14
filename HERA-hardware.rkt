@@ -1,6 +1,6 @@
 #lang racket
 (provide memsize wordlim PC flags registers memory-data memory-code reset! load-data! load-code! step! set-step-trace!)
-(provide hex-str hera-op%-str)   ; hex-str prints hexidecimal 8-bit or 16-bit numbers 
+(provide hex-display hera-op%-str)   ; hex-str prints hexidecimal 8-bit or 16-bit numbers 
 (provide hera-val? hera-addr? hera-reg-num?)
 
 (require "check.rkt")
@@ -155,7 +155,7 @@
         (let ()
           (printf "Illegal instruction (no op implemented): #x~x\n" instr)
           (inc-PC!)))))
-(define/contract (hex-str num         [hits 4]  [prefix "0x"])
+(define/contract (hex-display num         [hits 4]  [prefix "0x"])
   (->*                    (hera-val?) (integer? string?)       string?)
   (string-append prefix
                  (string-upcase (~r num #:base 16 #:min-width hits #:pad-string "0"))))  ; thanks, Claude, for reading all those manuals ... THIS IS COPY-PASTED CODE
@@ -167,8 +167,8 @@
          [matches (filter (λ (op) (send op match? instr)) ops)])
     (match (length matches)
       [1    (send (first matches) str instr)]
-      [0    (format "ASM(~a)  // no matching instruction found" (hex-str instr))]
-      [else (format "ASM(~a)  // WARNING multiple matching operations found for this instruction" (hex-str instr))])))
+      [0    (format "ASM(~a)  // no matching instruction found" (hex-display instr))]
+      [else (format "ASM(~a)  // WARNING multiple matching operations found for this instruction" (hex-display instr))])))
         
 
 
@@ -249,7 +249,7 @@
          (format "~a(R~x, R~x,R~x)" name (get-n2 instr) (get-n1 instr) (get-n0 instr)))]
       [hera-op%-as-ASM
        (λ (pattern instr name)
-         (format "ASM(0x~x)  // Dave too lazy to make ~a pretty" (hex-str instr) name))]  ; for when I'm lazy
+         (format "ASM(0x~x)  // Dave too lazy to make ~a pretty" (hex-display instr) name))]  ; for when I'm lazy
       [just-sz-flags (bitwise-ior flag-s-mask flag-z-mask)]
       [no-flags 0])
   
@@ -264,7 +264,7 @@
        [to-string (λ (pattern instr op)
                     (let ([vvvvvvvv (get-b0 instr)]
                           [d-reg    (get-n2 instr)])
-                      (format "SETHI(R~x, ~a)  // UNTESTED" d-reg  (hex-str vvvvvvvv 2))))])
+                      (format "SETHI(R~x, ~a)  // UNTESTED" d-reg  (hex-display vvvvvvvv 2))))])
 
   ;;; 0xE***  SETLO
   (new hera-op% [pattern "1110 dddd vvvvvvvv"] [name "SETLO"]
@@ -483,7 +483,7 @@
 (define (step!)
   (let ([instr (vector-ref memory-code PC)])
     (when HERA-hw-step-trace
-      (printf "~a\t~a\t" (hex-str PC) (hera-op%-str instr)))
+      (printf "~a\t~a\t" (hex-display PC) (hera-op%-str instr)))
     (hera-op%-dispatch instr)
     (when HERA-hw-step-trace
       (newline))   ))

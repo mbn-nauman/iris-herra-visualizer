@@ -31,11 +31,12 @@
        str)))
 
 
+; Dave overlooked this and then wrote it too; later renamed  to hex-display and just commented this out
 ; learnt about this later --> (~r #:base 16 #:min-width 4 #:pad-string "0" 42) --> "002a"
-(define (hex-display value) ; this converts a number to hex
-  (string-append
-   "0x"
-   (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
+;(define (hex-display value) ; this converts a number to hex
+;  (string-append
+;   "0x"
+;   (pad-left (string-upcase (number->string value 16)) 4 #\0))) ; converting to hex here ; string-upcase is used to change letters to uppercase
 
 
 

@@ -1,6 +1,5 @@
 #lang racket
 (require racket/gui/base racket/string "HERA-api.rkt")
-(load-code! "")
 
  
 (define frame (new frame% ; this creates the full window on which we will make the visualizer on
@@ -81,7 +80,7 @@
 (define code-address-choice ; drop down for address column
   (new choice%
        [parent code-options-panel]
-       [label #f]
+       [label "Address"]
        [choices '("Dec" "Hex")]
        [selection 1] ; auto choose hex initially
        [callback
@@ -95,7 +94,7 @@
 (define code-command-choice ; drop down for command column
   (new choice%
        [parent code-options-panel]
-       [label #f]
+       [label "Command"]
        [choices '("Hex" "Assembly")]
        [selection 0] ; auto choose hex initially
        [callback
@@ -113,13 +112,6 @@
        [alignment '(left top)]
        [stretchable-width #f]
        [stretchable-height #f]))
-
-; adding header for that panel now
-
-(new message%
-     [parent code-lines-panel]
-     [label "Address Command"]
-     [auto-resize #t])
 
 ; now going to make function to display addresses
 
@@ -145,12 +137,12 @@
 
 ; now going to make function to display the commands
 
-(define (code-command-display command)
+(define (code-command-display address command)
   (cond
     [(= current-command-mode 0) ; checks if we need command in asb or hex
      (hex-display command)] ; if hex
     [else
-     (hex->assembly command)])) ; if asb
+     (get-code-asm address)])) ; if asb -- using function from api file now
 
 ; as the command column is editable, we need to pars our hex string values as numbers
 
@@ -165,13 +157,132 @@
    (remove-hex-prefix s) 16)) ; this removes the 0x/0X and then reads the string as base 16
 
 
+; making the line with the full address + command in it
+
+(define (code-line-display address command)
+  (string-append (code-address-display address) " " (code-command-display address command)))
 
 
+; now making the editable fields in the code box/panel
+
+(define (make-code-line-fields i)
+  (cond
+    [(= i code-row-count) '()]
+    [else
+     (cons (new text-field%
+                [parent code-lines-panel]
+                [label #f]
+                [init-value (code-line-display (vector-ref code-address-values i) (vector-ref code-command-values i))] ; initial value in the fields
+                [min-width 300])
+           (make-code-line-fields (+ i 1)))]))
+
+(define code-line-fields ; initialization
+  (make-code-line-fields 0))
+
+; now making a function to set or update one line
+
+(define (set-code-row! row address command) ; 3 inputs
+  (vector-set! code-address-values row address) ; setting the new address in the address value list
+  (vector-set! code-command-values row command) ; setting the new command in the command value list
+
+  (define code-line-field
+    (list-ref code-line-fields row)) ; new code line field
+
+  (send code-line-field set-value
+        (code-line-display address command))) ;setting value of the new code line field using code line display function
+
+; function to split line into address and command using the space in between them
+
+(define (split-code-line line)
+  
+  (define cleaned-line
+    (string-trim line)) ; this works by removing extra spaces from the start and end of the line
+
+  (define space-match
+    (regexp-match-positions #rx" +" cleaned-line)) ; learnt this from ai, the #rx" +" means that one or more spaces 
+
+  (cond ; seeing if a space was found or not
+    [space-match ; if space was found
+     
+     (define space-position 
+       (first space-match)) ; as space match is a list of the space postions we got, we see the first position in that list and save it in space-position, it would look something like '(6 . 7) which
+     ;means it starts at 6 and ends at 7
+
+     (define space-start 
+       (car space-position)) ; car gives the first of the list so it will be 6 if we continue the last example
+
+     (define space-end 
+       (cdr space-position)) ; cdr gives the last of the list so it will be 7 if we continue the last example
+
+     (values ; learnt from ai, usually functions return one value but this 'values' lets us return more than one value
+      (substring cleaned-line 0 space-start) ; gives everything till the first space
+      (string-trim
+       (substring cleaned-line space-end)))] ; gives everything everything after the first space, and trims it so if there are extra spaces after first space, they are removed
+
+    [else
+     (values cleaned-line "")])) ; this happens if no space, helps the gui not crash
 
 
+; now will make a function so save the edited code row by first splitting, then converting and then savind in the list/vector
+
+(define (save-code-row! row)
+  (define code-line-field
+    (list-ref code-line-fields row)) ; getting the code row using row number
+
+  (define typed-line
+    (send code-line-field get-value)) ; getting the value in that code row
+
+  (define-values (address-text command-text) ; splitting line and giving value to both the parameters
+    (split-code-line typed-line))
+
+  (define new-address 
+    (cond
+      [(= current-address-mode 0) ; checking current format mode
+       (dec-string->number address-text)] ; if dec
+      [else
+       (hex-string->number address-text)])) ; if hex
+
+  (define new-command
+    (cond
+      [(string=? command-text "") #f] ; if not command then we keep the old command
+      [(= current-command-mode 0) ; checking current format mode
+       (hex-string->number command-text)] ; if hex
+      [else
+       (assembly->hex command-text)])) ; if assembly
+
+  (when new-address ; this is so gui doesnt fail
+    (vector-set! code-address-values row new-address))
+
+  (when new-command ; this is so gui doesnt fail
+    (vector-set! code-command-values row new-command)))
 
 
+; now making a function to save all the rows at once -- its going to be a basic recursive function
 
+(define (save-code-fields! i) 
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (save-code-row! i)
+     (save-code-fields! (+ i 1))]))
+
+; now making a function to rebuild all the rows or refresh them when format changes etc
+
+(define (refresh-code-display! i)
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (set-code-row! i (vector-ref code-address-values i) (vector-ref code-command-values i))
+     (refresh-code-display! (+ i 1))]))
+
+; making a refresh function for the back end to test the api functions with the gui
+
+(define (refresh-code-from-backend! i)
+  (cond
+    [(= i code-row-count) (void)]
+    [else
+     (set-code-row! i i (get-code i)) ; uses get-code from api which takes a row number and gives the command on that row
+     (refresh-code-from-backend! (+ i 1))]))
 
 
 ; register panel starts here
@@ -354,6 +465,14 @@
   (send ascii-label set-label
         (ascii-display value)))
 
+; making a function to be able to refresh the registers from the backend values usin step, instead of our hardcoded ones in step button
+
+(define (refresh-registers-from-backend! i)
+  (cond
+    [(= i 16) (void)]
+    [else
+     (set-register-value! i (get-register i)) ; uses get-register from api
+     (refresh-registers-from-backend! (+ i 1))]))
   
 
 (define (reset-registers! i)
@@ -520,6 +639,15 @@
   (send ascii-label set-label
         (ascii-display value)))
 
+; making a function to refresh mameory using backend function get-data
+
+(define (refresh-memory-from-backend! i)
+  (cond
+    [(= i 8) (void)]
+    [else
+     (set-memory-value! i (get-data i)) ; get-data is from the api so we can actual step through code instead of fake and hardcoded values
+     (refresh-memory-from-backend! (+ i 1))]))
+
 
 (define (reset-memory! i)
   (cond
@@ -532,33 +660,45 @@
   (reset-registers! 0)
   (reset-memory! 0))
 
+; adding a program counter near the buttons
+
+(define pc-display
+  (new message%
+       [parent toolbar]
+       [label "PC: 0x0000"]
+       [auto-resize #t]))
+
+(define (refresh-pc-from-backend!)
+  (send pc-display set-label ; setting value to the pc-display label
+        (string-append "PC: " (hex-display (get-PC))))) ; gets the value from the backend function get-PC
+
+; making a single helper function which refreshes everything
+
+(define (refresh-all-from-backend!)
+  (refresh-pc-from-backend!)
+  (refresh-registers-from-backend! 0)
+  (refresh-memory-from-backend! 0)
+  (refresh-code-from-backend! 0))
+
+; buttons
+
 (new button%
      [parent toolbar]
      [label "Run"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        ;(displayln "Run Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
-        ;(set-code-display!
-        (set-code-row! 0 0 #xE111)
-        (set-code-row! 1 1 #xE219)
-        (set-code-row! 2 2 #xA312)
-        (set-code-row! 3 3 #xA111)
-        (set-code-row! 4 4 #xB412)
-        (set-code-row! 5 5 #xB521)
-        (set-code-row! 6 6 #xB114)
-        (set-code-row! 7 7 #x0002)
-         "'the code in the file'")])
-
+        (reset!)
+        (load-code! "")
+        (load-data! "")
+        (refresh-all-from-backend!))])
 
 (new button%
      [parent toolbar]
      [label "Step"]
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
-        (set-register-value! 0 65)
-        (set-register-value! 1 123)
-        (set-memory-value! 2 72)
-        (set-memory-value! 3 105))])
+        (step!)
+        (refresh-all-from-backend!))])
 
 (new button%
      [parent toolbar]
@@ -566,8 +706,9 @@
      [callback
       (lambda (button event) ; the button and event are two inputs the function takes, button: the button that was pressed, event: information about the click
         ;(displayln "Reset Clicked"))]) ; prints this string when the button is pressed. added this for now to test, can be removed later
-        (reset-display!))])
-
+        ;(reset-display!))])
+        (reset!)
+        (refresh-all-from-backend!))])
 
 
 

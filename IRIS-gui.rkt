@@ -3,7 +3,7 @@
 
  
 (define frame (new frame% ; this creates the full window on which we will make the visualizer on
-  [label "IRIS"]
+  [label "IRIS (by Muhammad Bin Nauman and David Wonnacott)"]
   [width 900]
   [height 600]))
 
@@ -672,13 +672,44 @@
   (send pc-display set-label ; setting value to the pc-display label
         (string-append "PC: " (hex-display (get-PC))))) ; gets the value from the backend function get-PC
 
+; making a default label for flags
+
+(define flags-display
+  (new message%
+       [parent toolbar]
+       [label "Flags: S=0 Z=0 V=0 C=0 CB=0"]
+       [auto-resize #t]))
+
+;making a boolean to bit function for flags
+
+(define (bool->bit value)
+  (if value "1" "0")) ; value will be #f or #t
+
+; making a function to get the flags using get-flag and write them for gui in single line using string-append
+
+(define (flags-display-string)
+  
+  (define flags
+    (get-flags)) ; using this from api to get the flags from backend -- it returns a list/vector of the flags like (#f, #t...)
+
+  (string-append ; writing all flags in one line
+   "Flags: " "S="  (bool->bit (vector-ref flags 0)) " " "Z="  (bool->bit (vector-ref flags 1)) " " "V="  (bool->bit (vector-ref flags 2)) " "
+   "C="  (bool->bit (vector-ref flags 3)) " " "CB=" (bool->bit (vector-ref flags 4))))
+
+; refrshing the flags
+
+(define (refresh-flags-from-backend!)
+  (send flags-display set-label
+        (flags-display-string)))
+
 ; making a single helper function which refreshes everything
 
 (define (refresh-all-from-backend!)
   (refresh-pc-from-backend!)
   (refresh-registers-from-backend! 0)
   (refresh-memory-from-backend! 0)
-  (refresh-code-from-backend! 0))
+  (refresh-code-from-backend! 0)
+  (refresh-flags-from-backend!))
 
 ; buttons
 
@@ -709,6 +740,7 @@
         ;(reset-display!))])
         (reset!)
         (refresh-all-from-backend!))])
+
 
 
 

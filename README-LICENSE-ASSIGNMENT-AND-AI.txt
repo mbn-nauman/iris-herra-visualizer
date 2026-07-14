@@ -15,4 +15,5 @@ LLM's have been used in the construction of this software in only the following 
 * As tools to identify problems without actually changing or adding code
 * As a helper to give ideas on how to make the visualizer better
 * To suggest a name from Greek mythology for seeing HERA more clearly (thus, "Iris")
-* To tell existing Racket in-built functions so don't have to create them ourselves 
+* To tell existing Racket in-built functions so don't have to create them ourselves
+* To suggest next steps of what to do in the GUI code to connect it with the backend API 

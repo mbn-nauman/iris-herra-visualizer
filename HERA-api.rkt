@@ -2,7 +2,7 @@
 (require "check.rkt")
 (require "HERA-hardware.rkt")
 
-(provide reset! step! get-PC get-flags get-register get-data get-code get-code-asm)  ; reset! right outta HERA-hardware
+(provide reset! step! get-PC get-flags get-register get-data get-code get-code-asm hex-str)  ; reset! right outta HERA-hardware
 (provide load-data! load-code!)
 
 (define verbose #f)

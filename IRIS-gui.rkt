@@ -45,7 +45,7 @@
                       [label "Code / File"]))
 
 
-(define code-row-count 12) ; number of code rows shown for now = 8
+(define code-row-count 8) ; number of code rows shown for now = 8
 
 (define code-address-values ; this stores addresses for each row
   (make-vector code-row-count 0)) ; vector: fixed size list
@@ -157,11 +157,17 @@
   (string->number
    (remove-hex-prefix s) 16)) ; this removes the 0x/0X and then reads the string as base 16
 
+; making a helper function to add a pointer on the address we are currently on
+
+(define (pc-pointer-display address)
+  (cond
+    [(= address (get-PC)) "> "] ; if the current address is this then return "> "
+    [else "  "])) ; else return a space
 
 ; making the line with the full address + command in it
 
 (define (code-line-display address command)
-  (string-append (code-address-display address) " " (code-command-display address command)))
+  (string-append (pc-pointer-display address) (code-address-display address) " " (code-command-display address command)))
 
 
 ; now making the editable fields in the code box/panel
@@ -276,14 +282,28 @@
      (set-code-row! i (vector-ref code-address-values i) (vector-ref code-command-values i))
      (refresh-code-display! (+ i 1))]))
 
+; making a function to get the address we will start with so can put a pointer on which address we are on in the code panel
+
+(define (code-window-start-address)
+  (max 0 (- (get-PC) 3))) ; using logic Dave told
+
 ; making a refresh function for the back end to test the api functions with the gui
 
-(define (refresh-code-from-backend! i)
+(define (refresh-code-from-backend! row)
+  (define start-address
+           (code-window-start-address))
+  
   (cond
-    [(= i code-row-count) (void)]
+    [(= row code-row-count) (void)]
     [else
-     (set-code-row! i i (get-code i)) ; uses get-code from api which takes a row number and gives the command on that row
-     (refresh-code-from-backend! (+ i 1))]))
+     (define code-address
+       (+ start-address row)) ; row is the visible row we can see in the gui and code-address is the actual address of that row in the backend...so like row 1 can have code-address 3
+     ; addition is done so we are on the correct address, suppose we start from address 5 and are on row 2 in gui then the code-address we are actually going to execute now will be address 7
+     
+     (set-code-row! row code-address (get-code code-address)) ; uses get-code from api which takes the address number and gives the command on that address
+     (refresh-code-from-backend! (+ row 1))]))
+
+
 
 
 ; register panel starts here

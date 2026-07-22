@@ -511,6 +511,31 @@
                       [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
                       [spacing 4])) ; this is amount of spacing between the children
 
+; making new panel for the size field
+
+(define memory-size-panel
+  (new horizontal-panel%
+       [parent memory-panel]
+       [alignment '(left top)]
+       [stretchable-height #f])) ; forces racket to not autostrech and keep it the size it needs to be
+
+; making the size field now which will be typeable AND the button to enter the size because if we do not make a button and we wanna enter 100 then it will first do 1 then 10 and then 100
+
+(define memory-size-field
+  (new text-field%
+       [parent memory-size-panel]
+       [label "Rows"]
+       [init-value "8"] ; this needs to match the memory-row-count or else there will be a contradiction in when the app is run
+       [min-width 80]
+       [stretchable-width #f]))
+
+(new button%
+     [parent memory-size-panel]
+     [label "Enter"]
+     [callback
+      (lambda (button event)
+        (apply-memory-size!))]) ;will create this function later, adding it before making it is okay because it will only take place when button is pressed
+
 ; horizontal panel for checkboxes to show or hide value format columns
 
 (define memory-options-panel
@@ -519,9 +544,17 @@
        [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
        [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
+; adding scoll feature in memory panel
+
+(define memory-scroll
+  (new vertical-panel%
+       [parent memory-panel]
+       [style '(vscroll)] ; auto means it will show scroll whenever it is must needed -- removed auto scroll later cuz it was bugging and showing empty panel sometimes during testing :(
+       [alignment '(left top)]))
+
 
 (define memory-table (new horizontal-panel%
-                          [parent memory-panel]
+                          [parent memory-scroll]
                           [alignment '(left top)] ; this forces the children of the panel to be placed on top left of this panel
                           [stretchable-height #f])) ; this forced racket to not auto strech the checkbox row and keep it the size just needed for the check boxes
 
@@ -585,31 +618,39 @@
 
 ; now adding headers for each value format and address
 
-(new message%
+(define mem-address-header
+  (new message%
      [parent mem-address-column]
      [label "Address"]
-     [auto-resize #t])
+     [auto-resize #t]))
 
-(new message%
+(define mem-dec-header
+  (new message%
      [parent mem-dec-column]
      [label "Dec"]
-     [auto-resize #t])
+     [auto-resize #t]))
 
-(new message%
+(define mem-hex-header
+  (new message%
      [parent mem-hex-column]
      [label "Hex"]
-     [auto-resize #t])
+     [auto-resize #t]))
 
-(new message%
+(define mem-ascii-header
+  (new message%
      [parent mem-ascii-column]
      [label "ASCII"]
-     [auto-resize #t])
+     [auto-resize #t]))
+
+; setting initial number of memory rows
+
+(define memory-row-count 8)
 
 ; making function to create labels for the memory column
 
 (define (make-memory-address-labels i)
   (cond
-    [(= i 8) '()]
+    [(= i memory-row-count) '()]
     [else
      (cons (new message%
                 [parent mem-address-column]
@@ -621,7 +662,7 @@
 
 (define (make-memory-value-labels i parent-column starting-text)
   (cond
-    [(= i 8) '()]
+    [(= i memory-row-count) '()]
     [else
      (cons (new message%
                 [parent parent-column]
@@ -660,11 +701,38 @@
   (send ascii-label set-label
         (ascii-display value)))
 
+; rebuilding rows of memory panel in one function
+
+(define (rebuild-memory-rows!)
+         (send mem-address-column change-children
+               (lambda (children)
+                 (list mem-address-header)))
+         (send mem-dec-column change-children
+               (lambda (children)
+                 (list mem-dec-header)))
+         (send mem-hex-column change-children
+               (lambda (children)
+                 (list mem-hex-header)))
+         (send mem-ascii-column change-children
+               (lambda (children)
+                 (list mem-ascii-header)))
+
+         (set! mem-address-labels
+               (make-memory-address-labels 0))
+         (set! mem-dec-labels
+               (make-memory-value-labels 0 mem-dec-column "0"))
+         (set! mem-hex-labels
+               (make-memory-value-labels 0 mem-hex-column "0x0000"))
+         (set! mem-ascii-labels
+               (make-memory-value-labels 0 mem-ascii-column "-")))
+  
+         
+
 ; making a function to refresh mameory using backend function get-data
 
 (define (refresh-memory-from-backend! i)
   (cond
-    [(= i 8) (void)]
+    [(= i memory-row-count) (void)]
     [else
      (set-memory-value! i (get-data i)) ; get-data is from the api so we can actual step through code instead of fake and hardcoded values
      (refresh-memory-from-backend! (+ i 1))]))
@@ -672,7 +740,7 @@
 
 (define (reset-memory! i)
   (cond
-    [(= i 8) (void)]
+    [(= i memory-row-count) (void)]
     [else
      (set-memory-value! i 0)
      (reset-memory! (+ i 1))]))
@@ -680,6 +748,17 @@
 (define (reset-display!)
   (reset-registers! 0)
   (reset-memory! 0))
+
+
+; now making the apply size function
+
+(define (apply-memory-size!)
+         (define n (string->number (send memory-size-field get-value)))
+
+         (set! memory-row-count n)
+         (rebuild-memory-rows!)
+         (refresh-memory-from-backend! 0))
+
 
 ; adding a program counter near the buttons
 

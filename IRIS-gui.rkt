@@ -704,6 +704,9 @@
 ; rebuilding rows of memory panel in one function
 
 (define (rebuild-memory-rows!)
+
+
+         ; clear all rows to just show the headers first "Address Dec Hex ASCII" <-- this way
          (send mem-address-column change-children
                (lambda (children)
                  (list mem-address-header)))
@@ -717,6 +720,7 @@
                (lambda (children)
                  (list mem-ascii-header)))
 
+         ; then adding the label values to each column according to the new value of number of rows (memory-row-count)
          (set! mem-address-labels
                (make-memory-address-labels 0))
          (set! mem-dec-labels
@@ -752,12 +756,12 @@
 
 ; now making the apply size function
 
-(define (apply-memory-size!)
-         (define n (string->number (send memory-size-field get-value)))
+(define (apply-memory-size!) ; runs when enter button is pressed
+         (define n (string->number (send memory-size-field get-value))) ; taking value added and turning it into a number
 
-         (set! memory-row-count n)
-         (rebuild-memory-rows!)
-         (refresh-memory-from-backend! 0))
+         (set! memory-row-count n) ; changing memory row count
+         (rebuild-memory-rows!) ; rebuilding the rows
+         (refresh-memory-from-backend! 0)) ; and then refreshing the memory columns according to the backend values
 
 
 ; adding a program counter near the buttons

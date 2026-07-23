@@ -15,7 +15,9 @@
 
 
 (define toolbar (new horizontal-panel%
-                     [parent main-panel]))
+                     [parent main-panel]
+                     [alignment '(center center)]
+                     [stretchable-height #f]))
 
 
 (define content (new horizontal-panel%
